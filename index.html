@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Global Air Quality Visualization</title>
+    <style>
+        /* Basic styling for the map and controls */
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: sans-serif;
+            background-color: #1a1a1a;
+        }
+        #map {
+            height: 100%;
+            width: 100%;
+        }
+        /* Style for the title panel */
+        #title-panel {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            max-width: 800px; 
+            background-color: rgba(0, 0, 0, 0.75);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 5;
+            font-size: 18px;
+            text-align: center;
+            box-sizing: border-box;
+            line-height: 1.4; 
+        }
+        .info-window-content { color: #333; }
+        .info-window-content h3 { margin: 0; color: #111; }
+        .info-window-content p { margin: 5px 0 0; }
+        .info-window-content i { color: #666; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <!-- Header with two lines -->
+    <div id="title-panel">
+        Group 62 Project : AI Driven Environmental Monitoring for Green Economy<br>IEDE program Tsinghua University
+    </div>
+    <div id="map"></div>
+
+    <script>
+    let map;
+    let infoWindow;
+    // The geocoder variable is no longer needed as this is handled by the backend.
+
+    function initMap() {
+        map = new google.maps.Map(document.getElementById('map'), {
+            center: { lat: 20, lng: 0 }, // Start with a global view
+            zoom: 3, 
+            mapTypeId: 'satellite',
+            // Custom dark map style
+            styles: [
+                { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
+                { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+                { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
+                { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+                { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+                { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] },
+                { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
+                { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] },
+                { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
+                { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
+                { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
+                { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
+                { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
+                { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
+                { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+                { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
+                { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
+                { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] }
+            ]
+        });
+
+        infoWindow = new google.maps.InfoWindow();
+        // We no longer initialize the geocoder here.
+
+        // Add the simulated heatmap
+        const airQualityHeatmap = new google.maps.visualization.HeatmapLayer({
+            data: getSimulatedHeatmapData(),
+            map: map,
+            radius: 35,
+            opacity: 0.6,
+            gradient: [
+                'rgba(0, 255, 255, 0)', 'rgba(0, 255, 255, 1)', 'rgba(0, 191, 255, 1)',
+                'rgba(0, 127, 255, 1)', 'rgba(0, 63, 255, 1)', 'rgba(0, 0, 255, 1)',
+                'rgba(0, 0, 223, 1)', 'rgba(0, 0, 191, 1)', 'rgba(0, 0, 159, 1)',
+                'rgba(0, 0, 127, 1)', 'rgba(63, 0, 91, 1)', 'rgba(127, 0, 63, 1)',
+                'rgba(191, 0, 31, 1)', 'rgba(255, 0, 0, 1)'
+            ]
+        });
+
+        // Add a click listener to the map to fetch real data
+        map.addListener('click', async (mapsMouseEvent) => {
+            const latLng = mapsMouseEvent.latLng;
+            
+            infoWindow.setPosition(latLng);
+            infoWindow.setContent('Fetching location and air quality data...');
+            infoWindow.open(map);
+
+            try {
+                // Perform API calls to our backend in parallel
+                const [locationName, airQualityData] = await Promise.all([
+                    getLocationName(latLng),
+                    getAirQualityData(latLng.toJSON())
+                ]);
+
+                displayAirQualityInfo(airQualityData, locationName, latLng);
+
+            } catch (error) {
+                console.error('Detailed Error:', error);
+                infoWindow.setContent(
+                    `<div class="info-window-content">
+                        <strong>Error: Could not retrieve data.</strong><br>
+                        <p><strong>Reason:</strong> ${error.message}</p><br>
+                        <i>There might be an issue with the backend function. Check the function logs on Netlify.</i>
+                    </div>`
+                );
+            }
+        });
+    }
+
+    /**
+     * Fetches the location name from our secure Netlify backend function.
+     */
+    async function getLocationName(latLng) {
+        const response = await fetch(`/.netlify/functions/getGeocode?lat=${latLng.lat()}&lng=${latLng.lng()}`);
+        const data = await response.json();
+
+        if (data.results && data.results[0]) {
+            return data.results[0].formatted_address;
+        } else {
+            console.error("Geocode Error:", data);
+            return "Location name not found";
+        }
+    }
+
+    /**
+     * Fetches air quality data from our secure Netlify backend function.
+     */
+    async function getAirQualityData(latLngJson) {
+        const response = await fetch('/.netlify/functions/getAirQuality', {
+            method: 'POST',
+            body: JSON.stringify({
+                latitude: latLngJson.lat,
+                longitude: latLngJson.lng,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorDetails = await response.json().catch(() => ({ error: { message: 'Could not parse error response.' } }));
+            const errorMessage = errorDetails.error?.message || `Request failed with status ${response.status}`;
+            throw new Error(errorMessage);
+        }
+        return response.json();
+    }
+
+    // Generates simulated data points for the heatmap
+    function getSimulatedHeatmapData() {
+        const locations = [
+            { lat: 34.0522, lng: -118.2437 }, { lat: 19.4326, lng: -99.1332 },
+            { lat: 40.7128, lng: -74.0060 }, { lat: -23.5505, lng: -46.6333 },
+            { lat: -34.6037, lng: -58.3816 }, { lat: 51.5074, lng: -0.1278 },
+            { lat: 48.8566, lng: 2.3522 }, { lat: 55.7558, lng: 37.6173 },
+            { lat: 6.5244, lng: 3.3792 }, { lat: 30.0444, lng: 31.2357 },
+            { lat: 39.9042, lng: 116.4074 }, { lat: 35.6895, lng: 139.6917 },
+            { lat: 19.0760, lng: 72.8777 }, { lat: -6.2088, lng: 106.8456 },
+            { lat: -33.8688, lng: 151.2093 },
+        ];
+        const heatmapData = [];
+        locations.forEach(location => {
+            const simulatedAqi = Math.random() * 200;
+            heatmapData.push({
+                location: new google.maps.LatLng(location.lat, location.lng),
+                weight: simulatedAqi
+            });
+        });
+        return heatmapData;
+    }
+
+    // Displays the fetched air quality data in the info window
+    function displayAirQualityInfo(data, locationName, position) {
+        if (data.error || !data.indexes || data.indexes.length === 0) {
+            infoWindow.setContent(`<strong>${locationName}</strong><br>No air quality data available.`);
+            return;
+        }
+
+        const { aqi, category, dominantPollutant, color } = data.indexes[0];
+        
+        const contentString = `
+            <div class="info-window-content">
+                <h3>${locationName}</h3>
+                <p><strong>AQI:</strong> ${aqi}</p>
+                <p><strong>Category:</strong> <span style="color: ${color ? `rgb(${Math.round(color.red*255)}, ${Math.round(color.green*255)}, ${Math.round(color.blue*255)})` : '#000'}">${category}</span></p>
+                <p><strong>Dominant Pollutant:</strong> ${dominantPollutant}</p>
+            </div>`;
+        
+        infoWindow.setPosition(position);
+        infoWindow.setContent(contentString);
+    }
+
+    // --- IMPORTANT ---
+    // Dynamically load the Google Maps script.
+    // You MUST replace "YOUR_CLIENT_SIDE_API_KEY_HERE" with a new API key.
+    // This key MUST have "HTTP referrer" restrictions in the Google Cloud console
+    // to lock it down to your Netlify domain (e.g., *.your-site-name.netlify.app/*).
+    function loadMapScript() {
+        const script = document.createElement('script');
+        const CLIENT_SIDE_API_KEY = "YOUR_CLIENT_SIDE_API_KEY_HERE"; // <-- PASTE YOUR RESTRICTED KEY HERE
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${CLIENT_SIDE_API_KEY}&libraries=visualization&callback=initMap`;
+        script.async = true;
+        script.defer = true;
+        document.head.appendChild(script);
+    }
+    
+    loadMapScript();
+
+    </script>
+</body>
+</html>
