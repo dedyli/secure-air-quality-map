@@ -1,9 +1,14 @@
 const fetch = require('node-fetch');
 
 exports.handler = async function(event, context) {
-    const API_KEY = process.env.Maps_API_KEY;
+    // --- FOR DEBUGGING ONLY ---
+    // Replace the line below with your actual API key.
+    // This must be the SAME key you pasted in getAirQuality.js
+    const API_KEY = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM";
+
+    // This line is no longer used.
+    // const API_KEY_FROM_ENV = process.env.GOOGLE_MAPS_API_KEY;
     
-    // Get lat/lng from the query string
     const { lat, lng } = event.queryStringParameters;
     const API_URL = `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${API_KEY}`;
 
