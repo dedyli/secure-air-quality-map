@@ -1,0 +1,6 @@
+[functions]
+  directory = "netlify/functions/"
+  node_bundler = "esbuild"
+[functions.dependencies]
+  # Required to make network requests from our function
+  node-fetch = "^2.6.7"
