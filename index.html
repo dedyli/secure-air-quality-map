@@ -205,14 +205,14 @@
         infoWindow.setContent(contentString);
     }
 
-    // --- IMPORTANT ---
-    // Dynamically load the Google Maps script.
-    // You MUST replace "YOUR_CLIENT_SIDE_API_KEY_HERE" with a new API key.
-    // This key MUST have "HTTP referrer" restrictions in the Google Cloud console
-    // to lock it down to your Netlify domain (e.g., *.your-site-name.netlify.app/*).
+    // --- TEMPORARY DEBUGGING STEP ---
+    // To make sure the backend key is working, we will use one powerful key for everything.
+    // 1. Go to your Google Cloud Console and get your UNRESTRICTED API key that has all 3 APIs enabled.
+    // 2. This should be the SAME key that you have stored in your Netlify environment variables.
+    // 3. Paste that single key below to replace "YOUR_UNRESTRICTED_API_KEY_FOR_DEBUGGING".
     function loadMapScript() {
         const script = document.createElement('script');
-        const CLIENT_SIDE_API_KEY = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; // <-- PASTE YOUR RESTRICTED KEY HERE
+        const CLIENT_SIDE_API_KEY = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; // <-- PASTE THE SAME KEY FROM NETLIFY HERE
         script.src = `https://maps.googleapis.com/maps/api/js?key=${CLIENT_SIDE_API_KEY}&libraries=visualization&callback=initMap`;
         script.async = true;
         script.defer = true;
