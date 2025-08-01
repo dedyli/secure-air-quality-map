@@ -266,13 +266,15 @@
         return response.json();
     }
     
-    // Logic for the new 0-100 inverted scale
+    // Logic for the new 0-100 inverted scale. Low AQI = Unhealthy, High AQI = Excellent.
     function getCategoryForNewScale(aqi) {
         if (aqi <= 25) return 'Unhealthy';
         if (aqi <= 50) return 'Moderate';
         if (aqi <= 75) return 'Good';
         if (aqi <= 100) return 'Excellent';
-        return 'N/A'; // For values outside the new range
+        // Handle AQI values from the API that are outside our new 0-100 range
+        if (aqi > 100) return 'Excellent'; 
+        return 'N/A';
     }
 
     function getSimulatedHeatmapData() {
@@ -306,7 +308,7 @@
 
         const { aqi, dominantPollutant, color } = data.indexes[0];
         
-        // Use the new 0-100 scale logic for the category text
+        // Use the new 0-100 scale logic for the category text to ensure consistency
         const newCategory = getCategoryForNewScale(aqi);
 
         const contentString = `
