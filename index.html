@@ -33,7 +33,7 @@
             line-height: 1.4; 
         }
         
-        /* --- NEW CSS FOR SEARCH BAR --- */
+        /* CSS FOR SEARCH BAR */
         #search-container {
             position: absolute;
             top: 85px; /* Positioned below the title */
@@ -69,12 +69,43 @@
         #search-button:hover {
             background-color: #437ae2;
         }
-        /* --- END OF NEW CSS --- */
 
         .info-window-content { color: #333; }
         .info-window-content h3 { margin: 0; color: #111; }
         .info-window-content p { margin: 5px 0 0; }
         .info-window-content i { color: #666; font-size: 0.9em; }
+
+        /* --- NEW CSS FOR AQI LEGEND --- */
+        #legend {
+            position: absolute;
+            bottom: 30px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.75);
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            z-index: 5;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        #legend h4 {
+            margin: 0 0 5px 0;
+            text-align: center;
+        }
+        #legend div {
+            display: flex;
+            align-items: center;
+        }
+        #legend span {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 8px;
+            display: inline-block;
+            border: 1px solid #555;
+        }
+        /* --- END OF NEW CSS --- */
+
     </style>
 </head>
 <body>
@@ -88,58 +119,52 @@
     </div>
     <div id="map"></div>
 
+    <div id="legend">
+        <h4>AQI Legend</h4>
+        <div><span style="background-color: #00E400;"></span> 0-50: Good</div>
+        <div><span style="background-color: #FFFF00;"></span> 51-100: Moderate</div>
+        <div><span style="background-color: #FF7E00;"></span> 101-150: Unhealthy for Sensitive Groups</div>
+        <div><span style="background-color: #FF0000;"></span> 151-200: Unhealthy</div>
+        <div><span style="background-color: #8F3F97;"></span> 201-300: Very Unhealthy</div>
+    </div>
     <script>
     let map;
     let infoWindow;
-    let geocoder; // <-- Re-introducing the geocoder variable
+    let geocoder; 
 
     function initMap() {
         map = new google.maps.Map(document.getElementById('map'), {
-            center: { lat: 20, lng: 0 }, // Start with a global view
+            center: { lat: 20, lng: 0 }, 
             zoom: 3, 
             mapTypeId: 'satellite',
-            // Custom dark map style
             styles: [
-                { elementType: 'geometry', stylers: [{ color: '#242f3e' }] },
-                { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
-                { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-                { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-                { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-                { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] },
-                { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
-                { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] },
-                { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
-                { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
-                { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
-                { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
-                { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
-                { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
-                { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-                { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
-                { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
-                { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] }
+                { elementType: 'geometry', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
+                { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] }, { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
+                { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] }, { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] },
+                { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] }, { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] },
+                { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] }, { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] },
+                { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] }, { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] },
+                { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] }, { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] },
+                { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] }, { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] },
+                { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] }, { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] }
             ]
         });
 
         infoWindow = new google.maps.InfoWindow();
-        geocoder = new google.maps.Geocoder(); // <-- Initialize the geocoder
+        geocoder = new google.maps.Geocoder();
 
-        // Add the simulated heatmap
         const airQualityHeatmap = new google.maps.visualization.HeatmapLayer({
             data: getSimulatedHeatmapData(),
             map: map,
             radius: 35,
             opacity: 0.6,
             gradient: [
-                'rgba(0, 255, 255, 0)', 'rgba(0, 255, 255, 1)', 'rgba(0, 191, 255, 1)',
-                'rgba(0, 127, 255, 1)', 'rgba(0, 63, 255, 1)', 'rgba(0, 0, 255, 1)',
-                'rgba(0, 0, 223, 1)', 'rgba(0, 0, 191, 1)', 'rgba(0, 0, 159, 1)',
-                'rgba(0, 0, 127, 1)', 'rgba(63, 0, 91, 1)', 'rgba(127, 0, 63, 1)',
+                'rgba(0, 255, 255, 0)', 'rgba(0, 255, 255, 1)', 'rgba(0, 191, 255, 1)', 'rgba(0, 127, 255, 1)', 'rgba(0, 63, 255, 1)', 'rgba(0, 0, 255, 1)',
+                'rgba(0, 0, 223, 1)', 'rgba(0, 0, 191, 1)', 'rgba(0, 0, 159, 1)', 'rgba(0, 0, 127, 1)', 'rgba(63, 0, 91, 1)', 'rgba(127, 0, 63, 1)',
                 'rgba(191, 0, 31, 1)', 'rgba(255, 0, 0, 1)'
             ]
         });
 
-        // Add a click listener to the map to fetch real data
         map.addListener('click', async (mapsMouseEvent) => {
             const latLng = mapsMouseEvent.latLng;
             
@@ -148,7 +173,6 @@
             infoWindow.open(map);
 
             try {
-                // Perform API calls to our backend in parallel
                 const [locationName, airQualityData] = await Promise.all([
                     getLocationName(latLng),
                     getAirQualityData(latLng.toJSON())
@@ -168,7 +192,6 @@
             }
         });
 
-        // --- NEW JAVASCRIPT FOR SEARCH BAR ---
         const searchButton = document.getElementById('search-button');
         const addressInput = document.getElementById('address-input');
 
@@ -176,16 +199,13 @@
             geocodeAddress(addressInput.value);
         });
 
-        // Optional: Allow pressing 'Enter' to trigger a search
         addressInput.addEventListener('keyup', (event) => {
             if (event.key === 'Enter') {
                 geocodeAddress(addressInput.value);
             }
         });
-        // --- END OF NEW JAVASCRIPT ---
     }
     
-    // --- NEW FUNCTION TO HANDLE GEOCODING ---
     async function geocodeAddress(address) {
         if (!address) {
             alert('Please enter a location to search.');
@@ -196,15 +216,13 @@
             if (status === 'OK') {
                 const location = results[0].geometry.location;
                 map.setCenter(location);
-                map.setZoom(11); // Zoom in for a better view
+                map.setZoom(11); 
 
-                // Trigger air quality data fetch for the new location
                 infoWindow.setPosition(location);
                 infoWindow.setContent(`Fetching air quality for ${results[0].formatted_address}...`);
                 infoWindow.open(map);
                 
                 try {
-                    // We already have the location name from the geocode result
                     const locationName = results[0].formatted_address;
                     const airQualityData = await getAirQualityData(location.toJSON());
                     displayAirQualityInfo(airQualityData, locationName, location);
@@ -223,11 +241,7 @@
             }
         });
     }
-    // --- END OF NEW FUNCTION ---
 
-    /**
-     * Fetches the location name from our secure Netlify backend function.
-     */
     async function getLocationName(latLng) {
         const response = await fetch(`/.netlify/functions/getGeocode?lat=${latLng.lat()}&lng=${latLng.lng()}`);
         const data = await response.json();
@@ -240,9 +254,6 @@
         }
     }
 
-    /**
-     * Fetches air quality data from our secure Netlify backend function.
-     */
     async function getAirQualityData(latLngJson) {
         const response = await fetch('/.netlify/functions/getAirQuality', {
             method: 'POST',
@@ -260,7 +271,6 @@
         return response.json();
     }
 
-    // Generates simulated data points for the heatmap
     function getSimulatedHeatmapData() {
         const locations = [
             { lat: 34.0522, lng: -118.2437 }, { lat: 19.4326, lng: -99.1332 },
@@ -283,7 +293,6 @@
         return heatmapData;
     }
 
-    // Displays the fetched air quality data in the info window
     function displayAirQualityInfo(data, locationName, position) {
         if (data.error || !data.indexes || data.indexes.length === 0) {
             infoWindow.setContent(`<strong>${locationName}</strong><br>No air quality data available.`);
@@ -304,15 +313,10 @@
         infoWindow.setContent(contentString);
     }
 
-    // --- TEMPORARY DEBUGGING STEP ---
-    // To make sure the backend key is working, we will use one powerful key for everything.
-    // 1. Go to your Google Cloud Console and get your UNRESTRICTED API key that has all 3 APIs enabled.
-    // 2. This should be the SAME key that you have stored in your Netlify environment variables.
-    // 3. Paste that single key below to replace "YOUR_UNRESTRICTED_API_KEY_FOR_DEBUGGING".
     function loadMapScript() {
         const script = document.createElement('script');
         const CLIENT_SIDE_API_KEY = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; // <-- PASTE THE SAME KEY FROM NETLIFY HERE
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${CLIENT_SIDE_API_KEY}&libraries=visualization,places&callback=initMap`; // <-- Added 'places' library
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${CLIENT_SIDE_API_KEY}&libraries=visualization,places&callback=initMap`;
         script.async = true;
         script.defer = true;
         document.head.appendChild(script);
