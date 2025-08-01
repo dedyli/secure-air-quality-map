@@ -119,12 +119,12 @@
     <div id="map"></div>
 
     <div id="legend">
-        <h4>AQI Legend</h4>
-        <div><span style="background-color: #00E400;"></span> 0-50: Good</div>
-        <div><span style="background-color: #FFFF00;"></span> 51-100: Moderate</div>
-        <div><span style="background-color: #FF7E00;"></span> 101-150: Unhealthy for Sensitive Groups</div>
-        <div><span style="background-color: #FF0000;"></span> 151-200: Unhealthy</div>
-        <div><span style="background-color: #8F3F97;"></span> 201-300: Very Unhealthy</div>
+        <h4>AQI Legend (Inverted)</h4>
+        <div><span style="background-color: #8F3F97;"></span> 0-50: Very Unhealthy</div>
+        <div><span style="background-color: #FF0000;"></span> 51-100: Unhealthy</div>
+        <div><span style="background-color: #FF7E00;"></span> 101-150: Moderate</div>
+        <div><span style="background-color: #FFFF00;"></span> 151-200: Good</div>
+        <div><span style="background-color: #00E400;"></span> 201-300: Excellent</div>
     </div>
 
     <script>
@@ -158,15 +158,14 @@
             map: map,
             radius: 35,
             opacity: 0.7,
-            // CORRECTED GRADIENT: This gradient now matches the legend.
+            // INVERTED GRADIENT: Red/Purple (Bad) for low values, Green (Good) for high values.
             gradient: [
-                'rgba(0, 228, 0, 0)',      // Transparent Green
-                'rgba(0, 228, 0, 1)',      // Green
-                'rgba(255, 255, 0, 1)',    // Yellow
-                'rgba(255, 126, 0, 1)',    // Orange
-                'rgba(255, 0, 0, 1)',      // Red
+                'rgba(126, 0, 35, 0)',      // Transparent Maroon
                 'rgba(143, 63, 151, 1)',   // Purple
-                'rgba(126, 0, 35, 1)'      // Maroon
+                'rgba(255, 0, 0, 1)',      // Red
+                'rgba(255, 126, 0, 1)',    // Orange
+                'rgba(255, 255, 0, 1)',    // Yellow
+                'rgba(0, 228, 0, 1)'       // Green
             ]
         });
 
@@ -298,6 +297,7 @@
         return heatmapData;
     }
 
+    // This function now uses the original 'category' text directly from the API.
     function displayAirQualityInfo(data, locationName, position) {
         if (data.error || !data.indexes || data.indexes.length === 0) {
             infoWindow.setContent(`<strong>${locationName}</strong><br>No air quality data available.`);
