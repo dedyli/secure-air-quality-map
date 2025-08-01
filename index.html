@@ -119,11 +119,11 @@
     <div id="map"></div>
 
     <div id="legend">
-        <h4>AQI Legend (0-100)</h4>
-        <div><span style="background-color: #FF0000;"></span> 0-25: Unhealthy</div>
-        <div><span style="background-color: #FF7E00;"></span> 26-50: Moderate</div>
-        <div><span style="background-color: #FFFF00;"></span> 51-75: Good</div>
-        <div><span style="background-color: #00E400;"></span> 76-100: Excellent</div>
+        <h4>AQI Legend</h4>
+        <div><span style="background-color: #00E400;"></span> 0-50: Good</div>
+        <div><span style="background-color: #FFFF00;"></span> 51-100: Moderate</div>
+        <div><span style="background-color: #FF7E00;"></span> 101-150: Unhealthy for Sensitive</div>
+        <div><span style="background-color: #FF0000;"></span> 151+: Unhealthy</div>
     </div>
 
     <script>
@@ -157,13 +157,13 @@
             map: map,
             radius: 35,
             opacity: 0.7,
-            // INVERTED GRADIENT: Red (Bad) for low values, Green (Good) for high values.
+            // STANDARD GRADIENT: Green (Good/Low AQI) to Red (Bad/High AQI)
             gradient: [
-                'rgba(255, 0, 0, 0)',      // Transparent Red
-                'rgba(255, 0, 0, 1)',      // Red
-                'rgba(255, 126, 0, 1)',    // Orange
+                'rgba(0, 228, 0, 0)',      // Transparent Green
+                'rgba(0, 228, 0, 1)',      // Green
                 'rgba(255, 255, 0, 1)',    // Yellow
-                'rgba(0, 228, 0, 1)'       // Green
+                'rgba(255, 126, 0, 1)',    // Orange
+                'rgba(255, 0, 0, 1)'       // Red
             ]
         });
 
@@ -266,38 +266,28 @@
         return response.json();
     }
     
-    // Logic for the new 0-100 inverted scale. Low AQI = Unhealthy, High AQI = Excellent.
-    function getCategoryForNewScale(aqi) {
-        if (aqi <= 25) return 'Unhealthy';
-        if (aqi <= 50) return 'Moderate';
-        if (aqi <= 75) return 'Good';
-        if (aqi <= 100) return 'Excellent';
-        // Handle AQI values from the API that are outside our new 0-100 range
-        if (aqi > 100) return 'Excellent'; 
-        return 'N/A';
+    // STANDARD LOGIC: Returns "Good" for low AQI, "Unhealthy" for high AQI.
+    function getStandardCategoryFromAqi(aqi) {
+        if (aqi <= 50) return 'Good';
+        if (aqi <= 100) return 'Moderate';
+        if (aqi <= 150) return 'Unhealthy for Sensitive Groups';
+        if (aqi <= 200) return 'Unhealthy';
+        if (aqi <= 300) return 'Very Unhealthy';
+        return 'Hazardous';
     }
 
     function getSimulatedHeatmapData() {
         const locations = [
-            { lat: 34.0522, lng: -118.2437 }, { lat: 19.4326, lng: -99.1332 },
-            { lat: 40.7128, lng: -74.0060 }, { lat: -23.5505, lng: -46.6333 },
-            { lat: -34.6037, lng: -58.3816 }, { lat: 51.5074, lng: -0.1278 },
-            { lat: 48.8566, lng: 2.3522 }, { lat: 55.7558, lng: 37.6173 },
-            { lat: 6.5244, lng: 3.3792 }, { lat: 30.0444, lng: 31.2357 },
-            { lat: 39.9042, lng: 116.4074 }, { lat: 35.6895, lng: 139.6917 },
-            { lat: 19.0760, lng: 72.8777 }, { lat: -6.2088, lng: 106.8456 },
-            { lat: -33.8688, lng: 151.2093 },
+            { lat: 34.0522, lng: -118.2437, weight: 120 }, { lat: 19.4326, lng: -99.1332, weight: 150 },
+            { lat: 40.7128, lng: -74.0060, weight: 80 }, { lat: -23.5505, lng: -46.6333, weight: 180 },
+            { lat: -34.6037, lng: -58.3816, weight: 60 }, { lat: 51.5074, lng: -0.1278, weight: 45 },
+            { lat: 48.8566, lng: 2.3522, weight: 55 }, { lat: 55.7558, lng: 37.6173, weight: 90 },
+            { lat: 6.5244, lng: 3.3792, weight: 175 }, { lat: 30.0444, lng: 31.2357, weight: 160 },
+            { lat: 39.9042, lng: 116.4074, weight: 210 }, { lat: 35.6895, lng: 139.6917, weight: 30 },
+            { lat: 19.0760, lng: 72.8777, weight: 190 }, { lat: -6.2088, lng: 106.8456, weight: 70 },
+            { lat: -33.8688, lng: 151.2093, weight: 40 },
         ];
-        const heatmapData = [];
-        locations.forEach(location => {
-            // Generate data within the new 0-100 scale for the simulation
-            const simulatedAqi = Math.random() * 100; 
-            heatmapData.push({
-                location: new google.maps.LatLng(location.lat, location.lng),
-                weight: simulatedAqi
-            });
-        });
-        return heatmapData;
+        return locations.map(loc => ({ location: new google.maps.LatLng(loc.lat, loc.lng), weight: loc.weight }));
     }
 
     function displayAirQualityInfo(data, locationName, position) {
@@ -308,14 +298,14 @@
 
         const { aqi, dominantPollutant, color } = data.indexes[0];
         
-        // Use the new 0-100 scale logic for the category text to ensure consistency
-        const newCategory = getCategoryForNewScale(aqi);
+        // Use the standard logic for the category text to ensure consistency
+        const standardCategory = getStandardCategoryFromAqi(aqi);
 
         const contentString = `
             <div class="info-window-content">
                 <h3>${locationName}</h3>
                 <p><strong>AQI:</strong> ${aqi}</p>
-                <p><strong>Category:</strong> <span style="color: ${color ? `rgb(${Math.round(color.red*255)}, ${Math.round(color.green*255)}, ${Math.round(color.blue*255)})` : '#000'}">${newCategory}</span></p>
+                <p><strong>Category:</strong> <span style="color: ${color ? `rgb(${Math.round(color.red*255)}, ${Math.round(color.green*255)}, ${Math.round(color.blue*255)})` : '#000'}">${standardCategory}</span></p>
                 <p><strong>Dominant Pollutant:</strong> ${dominantPollutant}</p>
             </div>`;
 
