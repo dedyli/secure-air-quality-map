@@ -119,12 +119,11 @@
     <div id="map"></div>
 
     <div id="legend">
-        <h4>AQI Legend (Inverted)</h4>
-        <div><span style="background-color: #8F3F97;"></span> 0-50: Very Unhealthy</div>
-        <div><span style="background-color: #FF0000;"></span> 51-100: Unhealthy</div>
-        <div><span style="background-color: #FF7E00;"></span> 101-150: Moderate</div>
-        <div><span style="background-color: #FFFF00;"></span> 151-200: Good</div>
-        <div><span style="background-color: #00E400;"></span> 201-300: Excellent</div>
+        <h4>AQI Legend (0-100)</h4>
+        <div><span style="background-color: #FF0000;"></span> 0-25: Unhealthy</div>
+        <div><span style="background-color: #FF7E00;"></span> 26-50: Moderate</div>
+        <div><span style="background-color: #FFFF00;"></span> 51-75: Good</div>
+        <div><span style="background-color: #00E400;"></span> 76-100: Excellent</div>
     </div>
 
     <script>
@@ -158,10 +157,9 @@
             map: map,
             radius: 35,
             opacity: 0.7,
-            // INVERTED GRADIENT: Red/Purple (Bad) for low values, Green (Good) for high values.
+            // INVERTED GRADIENT: Red (Bad) for low values, Green (Good) for high values.
             gradient: [
-                'rgba(126, 0, 35, 0)',      // Transparent Maroon
-                'rgba(143, 63, 151, 1)',   // Purple
+                'rgba(255, 0, 0, 0)',      // Transparent Red
                 'rgba(255, 0, 0, 1)',      // Red
                 'rgba(255, 126, 0, 1)',    // Orange
                 'rgba(255, 255, 0, 1)',    // Yellow
@@ -190,7 +188,7 @@
                     `<div class="info-window-content">
                         <strong>Error: Could not retrieve data.</strong><br>
                         <p><strong>Reason:</strong> ${error.message}</p><br>
-                        <i>There might be an issue with the backend function. Check the function logs on Netlify.</i>
+                        <i>There might be an issue with the backend function.</i>
                     </div>`
                 );
             }
@@ -249,13 +247,7 @@
     async function getLocationName(latLng) {
         const response = await fetch(`/.netlify/functions/getGeocode?lat=${latLng.lat()}&lng=${latLng.lng()}`);
         const data = await response.json();
-
-        if (data.results && data.results[0]) {
-            return data.results[0].formatted_address;
-        } else {
-            console.error("Geocode Error:", data);
-            return "Location name not found";
-        }
+        return data.results?.[0]?.formatted_address || "Location name not found";
     }
 
     async function getAirQualityData(latLngJson) {
@@ -266,13 +258,21 @@
                 longitude: latLngJson.lng,
             }),
         });
-
         if (!response.ok) {
             const errorDetails = await response.json().catch(() => ({ error: { message: 'Could not parse error response.' } }));
             const errorMessage = errorDetails.error?.message || `Request failed with status ${response.status}`;
             throw new Error(errorMessage);
         }
         return response.json();
+    }
+    
+    // Logic for the new 0-100 inverted scale
+    function getCategoryForNewScale(aqi) {
+        if (aqi <= 25) return 'Unhealthy';
+        if (aqi <= 50) return 'Moderate';
+        if (aqi <= 75) return 'Good';
+        if (aqi <= 100) return 'Excellent';
+        return 'N/A'; // For values outside the new range
     }
 
     function getSimulatedHeatmapData() {
@@ -288,7 +288,8 @@
         ];
         const heatmapData = [];
         locations.forEach(location => {
-            const simulatedAqi = Math.random() * 200;
+            // Generate data within the new 0-100 scale for the simulation
+            const simulatedAqi = Math.random() * 100; 
             heatmapData.push({
                 location: new google.maps.LatLng(location.lat, location.lng),
                 weight: simulatedAqi
@@ -297,20 +298,22 @@
         return heatmapData;
     }
 
-    // This function now uses the original 'category' text directly from the API.
     function displayAirQualityInfo(data, locationName, position) {
         if (data.error || !data.indexes || data.indexes.length === 0) {
             infoWindow.setContent(`<strong>${locationName}</strong><br>No air quality data available.`);
             return;
         }
 
-        const { aqi, category, dominantPollutant, color } = data.indexes[0];
+        const { aqi, dominantPollutant, color } = data.indexes[0];
+        
+        // Use the new 0-100 scale logic for the category text
+        const newCategory = getCategoryForNewScale(aqi);
 
         const contentString = `
             <div class="info-window-content">
                 <h3>${locationName}</h3>
                 <p><strong>AQI:</strong> ${aqi}</p>
-                <p><strong>Category:</strong> <span style="color: ${color ? `rgb(${Math.round(color.red*255)}, ${Math.round(color.green*255)}, ${Math.round(color.blue*255)})` : '#000'}">${category}</span></p>
+                <p><strong>Category:</strong> <span style="color: ${color ? `rgb(${Math.round(color.red*255)}, ${Math.round(color.green*255)}, ${Math.round(color.blue*255)})` : '#000'}">${newCategory}</span></p>
                 <p><strong>Dominant Pollutant:</strong> ${dominantPollutant}</p>
             </div>`;
 
@@ -320,7 +323,7 @@
 
     function loadMapScript() {
         const script = document.createElement('script');
-        const CLIENT_SIDE_API_KEY = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; // <-- PASTE THE SAME KEY FROM NETLIFY HERE
+        const CLIENT_SIDE_API_KEY = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; // <-- PASTE YOUR KEY HERE
         script.src = `https://maps.googleapis.com/maps/api/js?key=${CLIENT_SIDE_API_KEY}&libraries=visualization,places&callback=initMap`;
         script.async = true;
         script.defer = true;
