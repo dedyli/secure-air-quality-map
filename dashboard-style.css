@@ -1,0 +1,173 @@
+/* --- Basic Reset & Body Styling --- */
+body, html {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background-color: #121212; /* Dark background for the whole page */
+    color: #E0E0E0;
+    overflow: hidden; /* Prevent scrolling of the whole page */
+}
+
+/* --- Dashboard Header --- */
+.dashboard-header {
+    padding: 12px 25px;
+    background-color: #1E1E1E;
+    border-bottom: 1px solid #333;
+    text-align: center;
+    box-sizing: border-box;
+}
+.dashboard-header h1 {
+    margin: 0;
+    font-size: 1.4em;
+    font-weight: 500;
+    color: #FFFFFF;
+}
+.dashboard-header p {
+    margin: 4px 0 0;
+    font-size: 0.85em;
+    color: #AAAAAA;
+}
+
+/* --- Main Dashboard Container (Flexbox Layout) --- */
+.dashboard-container {
+    display: flex;
+    /* Full viewport height minus the header's height */
+    height: calc(100vh - 65px); 
+}
+
+/* --- Map Panel (Main Content Area) --- */
+.map-panel {
+    flex-grow: 1; /* Allows this panel to take up all available space */
+    position: relative; /* Required for positioning child elements like the search bar */
+    height: 100%;
+}
+#map {
+    height: 100%;
+    width: 100%;
+}
+
+/* --- Search Bar (Positioned over the map) --- */
+#search-container {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    z-index: 5; /* Ensures it's above the map tiles */
+    display: flex;
+    background-color: rgba(30, 30, 30, 0.85);
+    backdrop-filter: blur(5px);
+    padding: 8px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+#address-input {
+    width: 280px;
+    padding: 8px 12px;
+    border: 1px solid #555;
+    border-radius: 6px;
+    background-color: #333;
+    color: #fff;
+    font-size: 15px;
+    font-family: 'Inter', sans-serif;
+}
+#address-input:focus {
+    outline: none;
+    border-color: #4C8BF5;
+}
+#search-button {
+    padding: 8px 16px;
+    margin-left: 8px;
+    border: none;
+    border-radius: 6px;
+    background-color: #4C8BF5;
+    color: white;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 500;
+    transition: background-color 0.2s ease;
+}
+#search-button:hover { background-color: #437ae2; }
+
+/* --- Map InfoWindow --- */
+.info-window-content { color: #333; font-family: 'Inter', sans-serif; }
+.info-window-content h3 { margin: 0; color: #111; font-size: 1.1em; }
+.info-window-content p { margin: 5px 0 0; }
+
+/* --- Sidebar for Widgets --- */
+.sidebar {
+    width: 380px;
+    flex-shrink: 0; /* Prevents sidebar from shrinking when window is resized */
+    background-color: #1E1E1E;
+    padding: 15px;
+    box-sizing: border-box;
+    overflow-y: auto; /* Allows sidebar to scroll if content overflows */
+    height: 100%;
+    border-left: 1px solid #333;
+}
+
+/* --- Individual Widget Styling --- */
+.widget {
+    background-color: #2a2a2e;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.widget:last-child {
+    margin-bottom: 0;
+}
+.widget-title {
+    margin-top: 0;
+    margin-bottom: 12px;
+    font-size: 1.05em;
+    font-weight: 500;
+    color: #FFFFFF;
+    border-bottom: 1px solid #444;
+    padding-bottom: 8px;
+}
+.widget-content {
+    font-size: 0.95em;
+}
+.widget-content.scrollable {
+    max-height: 220px;
+    overflow-y: auto;
+}
+
+/* --- Specific Widget Content Styles --- */
+/* Top Cities List */
+#top-cities-list .list-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 9px 4px;
+    border-bottom: 1px solid #3a3a3a;
+    font-size: 0.9em;
+}
+#top-cities-list .list-item:last-child { border-bottom: none; }
+.aqi-value { font-weight: bold; }
+.aqi-moderate { color: #FFFF00; }
+.aqi-sensitive { color: #FF7E00; }
+.aqi-unhealthy { color: #FF0000; }
+
+/* News List */
+#news-list .news-item { margin-bottom: 14px; }
+#news-list .news-item:last-child { margin-bottom: 0; }
+#news-list a { color: #8ab4f8; text-decoration: none; font-weight: 500; }
+#news-list a:hover { text-decoration: underline; }
+#news-list .news-source { display: block; font-size: 0.8em; color: #999; margin-top: 4px; }
+
+/* Chart Container */
+#global-trend-chart {
+    height: 180px; /* Fixed height for the chart container */
+}
+
+/* AQI Legend */
+#legend div { display: flex; align-items: center; margin-bottom: 6px; font-size: 0.9em;}
+#legend span {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin-right: 10px;
+    display: inline-block;
+    border: 1px solid #555;
+}
