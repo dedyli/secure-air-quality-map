@@ -6,12 +6,103 @@
     <title>Global Air Quality Monitoring Dashboard</title>
     <link rel="stylesheet" href="dashboard-style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
-    <!-- Style additions for AQI value colors -->
     <style>
+        /* --- ADDED: Basic Layout & Theme Styles (assuming from external CSS) --- */
+        body {
+            background-color: #1A1A1A;
+            color: #EAEAEA;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .dashboard-container {
+            display: grid;
+            grid-template-columns: 1fr 380px; /* Default state with sidebar */
+            height: calc(100vh - 95px);
+            padding: 15px;
+            gap: 15px;
+            transition: grid-template-columns 0.4s ease-in-out;
+        }
+
+        .map-panel, .sidebar {
+            height: 100%;
+            position: relative;
+        }
+
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow: hidden; /* Important for collapse animation */
+        }
+        
+        .widget {
+            background-color: #2a2a2e;
+            border-radius: 8px;
+            padding: 15px 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .widget-title {
+            margin: 0 0 15px 0;
+            font-weight: 500;
+            border-bottom: 1px solid #444;
+            padding-bottom: 10px;
+        }
+
+        .widget-content {
+            flex-grow: 1;
+            overflow-y: auto; /* Allow content to scroll if needed */
+        }
+        
+        .list-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 12px;
+            margin: 2px -12px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out; /* --- ADDED: Smooth hover transition --- */
+        }
+
+        /* --- ADDED: Rule for list item hover effect --- */
+        .list-item:hover {
+            background-color: #3a414a;
+        }
+        
+        .aqi-value { font-weight: 700; }
         .aqi-value.aqi-good { color: #00E400; }
         .aqi-value.aqi-moderate { color: #FFFF00; }
         .aqi-value.aqi-sensitive { color: #FF7E00; }
         .aqi-value.aqi-unhealthy { color: #FF0000; }
+
+        /* --- ADDED: Style for sidebar toggle button --- */
+        #sidebar-toggle-btn {
+            position: absolute;
+            top: 25px;
+            right: 25px;
+            z-index: 1000;
+            background-color: rgba(76, 139, 245, 0.8);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 12px;
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #sidebar-toggle-btn:hover {
+            background-color: rgba(76, 139, 245, 1);
+        }
+
+        /* --- ADDED: Class to apply when sidebar is collapsed --- */
+        .dashboard-container.sidebar-collapsed {
+            grid-template-columns: 1fr 0; /* Makes the sidebar column have no width */
+            gap: 0;
+        }
 
         /* CSS FOR AQI LEGEND ON MAP */
         #legend-map {
@@ -28,46 +119,26 @@
             line-height: 1.5;
             border: 1px solid rgba(255, 255, 255, 0.1);
         }
-        #legend-map h4 {
-            margin: 0 0 8px 0;
-            text-align: center;
-            font-weight: 500;
-            border-bottom: 1px solid #444;
-            padding-bottom: 5px;
-        }
-        #legend-map div {
-            display: flex;
-            align-items: center;
-            margin-bottom: 4px;
-        }
-        #legend-map div:last-child {
-            margin-bottom: 0;
-        }
-        #legend-map span {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            margin-right: 10px;
-            display: inline-block;
-            border: 1px solid #555;
-        }
+        #legend-map h4 { margin: 0 0 8px 0; text-align: center; font-weight: 500; border-bottom: 1px solid #444; padding-bottom: 5px; }
+        #legend-map div { display: flex; align-items: center; margin-bottom: 4px; }
+        #legend-map div:last-child { margin-bottom: 0; }
+        #legend-map span { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; display: inline-block; border: 1px solid #555; }
     </style>
 </head>
 <body>
     <header class="dashboard-header">
         <h1>Global Air Quality Monitoring Dashboard</h1>
         <p>Group 62 IEDE Research Topic: AI-Driven Environmental Monitoring for a Green Economy</p>
+        <button id="sidebar-toggle-btn" title="Toggle Sidebar">☰</button>
     </header>
 
     <div class="dashboard-container">
         <main class="map-panel">
-            <!-- The search container is now positioned relative to the map panel -->
             <div id="search-container">
                 <input id="address-input" type="text" placeholder="Enter a location to search">
                 <button id="search-button">Search</button>
             </div>
             <div id="map"></div>
-            <!-- The legend is now inside the map panel -->
             <div id="legend-map">
                 <h4>AQI Legend</h4>
                 <div><span style="background-color: #00E400;"></span> 0-50: Good</div>
@@ -78,25 +149,18 @@
         </main>
 
         <aside class="sidebar">
-            <!-- Widget 1: Top Polluted Cities -->
             <div class="widget">
                 <h3 class="widget-title">Top 10 Most Polluted Cities</h3>
-                <!-- This list will now be populated dynamically by JavaScript -->
                 <div id="top-cities-list" class="widget-content">
                     <div class="loader">Loading city data...</div>
                 </div>
             </div>
-
-            <!-- Widget 2: Global AQI Trend -->
             <div class="widget">
                 <h3 class="widget-title">Global AQI Trend (Last 7 Days)</h3>
                 <div id="global-trend-chart" class="widget-content">
-                    <!-- This canvas will be used by Chart.js to render the trend graph -->
                     <canvas id="aqiTrendChart"></canvas>
                 </div>
             </div>
-
-            <!-- Widget 3: Air Pollution News -->
             <div class="widget">
                 <h3 class="widget-title">Air Pollution News & Research</h3>
                 <div id="news-list" class="widget-content scrollable">
@@ -106,10 +170,8 @@
         </aside>
     </div>
 
-    <!-- CDN for Chart.js - a library for creating charts -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
-    <!-- Your map script logic, with additions for the chart -->
     <script>
     // --- Global variables for map components ---
     let map;
@@ -130,10 +192,6 @@
         { name: "Dubai, UAE", lat: 25.276987, lng: 55.296249, aqi: 98 }
     ];
 
-    /**
-     * Initializes the Google Map and all other interactive components.
-     * This function is the designated callback for the Google Maps script.
-     */
     function initMap() {
         map = new google.maps.Map(document.getElementById('map'), {
             center: { lat: 20, lng: 0 },
@@ -156,14 +214,8 @@
         geocoder = new google.maps.Geocoder();
 
         const airQualityHeatmap = new google.maps.visualization.HeatmapLayer({
-            data: getSimulatedHeatmapData(),
-            map: map,
-            radius: 35,
-            opacity: 0.7,
-            gradient: [
-                'rgba(0, 228, 0, 0)', 'rgba(0, 228, 0, 1)', 'rgba(255, 255, 0, 1)',
-                'rgba(255, 126, 0, 1)', 'rgba(255, 0, 0, 1)'
-            ]
+            data: getSimulatedHeatmapData(), map: map, radius: 35, opacity: 0.7,
+            gradient: ['rgba(0, 228, 0, 0)', 'rgba(0, 228, 0, 1)', 'rgba(255, 255, 0, 1)', 'rgba(255, 126, 0, 1)', 'rgba(255, 0, 0, 1)']
         });
 
         map.addListener('click', async (mapsMouseEvent) => {
@@ -173,8 +225,7 @@
             infoWindow.open(map);
             try {
                 const [locationName, airQualityData] = await Promise.all([
-                    getLocationName(latLng),
-                    getAirQualityData(latLng.toJSON())
+                    getLocationName(latLng), getAirQualityData(latLng.toJSON())
                 ]);
                 displayAirQualityInfo(airQualityData, locationName, latLng);
             } catch (error) {
@@ -193,15 +244,11 @@
         initCharts();
         populateTopCitiesList();
         document.getElementById('top-cities-list').addEventListener('click', handleCityClick);
-        // Fetch and display news
         getNewsData();
     }
 
     async function geocodeAddress(address) {
-        if (!address) {
-            alert('Please enter a location to search.');
-            return;
-        }
+        if (!address) { alert('Please enter a location to search.'); return; }
         geocoder.geocode({ 'address': address }, async (results, status) => {
             if (status === 'OK') {
                 const location = results[0].geometry.location;
@@ -214,9 +261,7 @@
                     console.error('Geocode Error:', error);
                     infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> Could not retrieve data for this location.</div>`);
                 }
-            } else {
-                alert('Geocode was not successful for the following reason: ' + status);
-            }
+            } else { alert('Geocode was not successful for the following reason: ' + status); }
         });
     }
 
@@ -224,11 +269,8 @@
         return new Promise((resolve, reject) => {
             geocoder.geocode({ 'location': latLng }, (results, status) => {
                 if (status === 'OK') {
-                    if (results[0]) {
-                        resolve(results[0].formatted_address);
-                    } else {
-                        resolve("Location name not found");
-                    }
+                    if (results[0]) { resolve(results[0].formatted_address); } 
+                    else { resolve("Location name not found"); }
                 } else {
                     console.error("Geocoder failed due to: " + status);
                     resolve("Location name not found");
@@ -242,19 +284,14 @@
     }
     
     function getStandardCategoryFromAqi(aqi) {
-        if (aqi <= 50) return 'Good';
-        if (aqi <= 100) return 'Moderate';
-        if (aqi <= 150) return 'Unhealthy for Sensitive Groups';
-        if (aqi <= 200) return 'Unhealthy';
-        if (aqi <= 300) return 'Very Unhealthy';
-        return 'Hazardous';
+        if (aqi <= 50) return 'Good'; if (aqi <= 100) return 'Moderate';
+        if (aqi <= 150) return 'Unhealthy for Sensitive Groups'; if (aqi <= 200) return 'Unhealthy';
+        if (aqi <= 300) return 'Very Unhealthy'; return 'Hazardous';
     }
 
     function getAqiColorClass(aqi) {
-        if (aqi <= 50) return 'aqi-good';
-        if (aqi <= 100) return 'aqi-moderate';
-        if (aqi <= 150) return 'aqi-sensitive';
-        return 'aqi-unhealthy';
+        if (aqi <= 50) return 'aqi-good'; if (aqi <= 100) return 'aqi-moderate';
+        if (aqi <= 150) return 'aqi-sensitive'; return 'aqi-unhealthy';
     }
 
     function getSimulatedHeatmapData() {
@@ -273,16 +310,13 @@
 
     function displayAirQualityInfo(data, locationName, position) {
         infoWindow.setPosition(position);
-
         if (data.error || !data.indexes || data.indexes.length === 0) {
             infoWindow.setContent(`<div class="info-window-content"><strong>${locationName}</strong><br>No air quality data available.</div>`);
-            infoWindow.open(map);
-            return;
+            infoWindow.open(map); return;
         }
         const { aqi, dominantPollutant } = data.indexes[0];
         const standardCategory = getStandardCategoryFromAqi(aqi);
-        const contentString = `<div class="info-window-content"><h3>${locationName}</h3><p><strong>AQI:</strong> ${aqi}</p><p><strong>Category:</strong> ${standardCategory}</p><p><strong>Dominant Pollutant:</strong> ${dominantPollutant}</p></div>`;
-        infoWindow.setContent(contentString);
+        infoWindow.setContent(`<div class="info-window-content"><h3>${locationName}</h3><p><strong>AQI:</strong> ${aqi}</p><p><strong>Category:</strong> ${standardCategory}</p><p><strong>Dominant Pollutant:</strong> ${dominantPollutant}</p></div>`);
         infoWindow.open(map);
     }
 
@@ -290,56 +324,37 @@
         const script = document.createElement('script');
         const CLIENT_SIDE_API_KEY = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM";
         script.src = `https://maps.googleapis.com/maps/api/js?key=${CLIENT_SIDE_API_KEY}&libraries=visualization,places&callback=initMap`;
-        script.async = true;
-        script.defer = true;
-        script.onerror = () => {
-            document.getElementById('map').innerText = 'Error: Could not load Google Maps. Please check the API key and network connection.';
-        };
+        script.async = true; script.defer = true;
+        script.onerror = () => { document.getElementById('map').innerText = 'Error: Could not load Google Maps...'; };
         document.head.appendChild(script);
     }
     
     function initCharts() {
         const ctx = document.getElementById('aqiTrendChart').getContext('2d');
-        const trendChart = new Chart(ctx, {
+        new Chart(ctx, {
             type: 'line',
             data: {
                 labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
                 datasets: [{
-                    label: 'Global Average AQI',
-                    data: [55, 60, 58, 62, 70, 75, 72],
-                    borderColor: '#4C8BF5',
-                    backgroundColor: 'rgba(76, 139, 245, 0.2)',
-                    fill: true,
-                    tension: 0.4
+                    label: 'Global Average AQI', data: [55, 60, 58, 62, 70, 75, 72],
+                    borderColor: '#4C8BF5', backgroundColor: 'rgba(76, 139, 245, 0.2)',
+                    fill: true, tension: 0.4
                 }]
             },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: { y: { beginAtZero: false } },
-                plugins: { legend: { display: false } }
-            }
+            options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } }, plugins: { legend: { display: false } } }
         });
     }
 
     function populateTopCitiesList() {
         const listContainer = document.getElementById('top-cities-list');
         listContainer.innerHTML = ''; 
-
         topCitiesData.forEach((city, index) => {
             const listItem = document.createElement('div');
             listItem.className = 'list-item';
-            listItem.setAttribute('data-lat', city.lat);
-            listItem.setAttribute('data-lng', city.lng);
-            listItem.setAttribute('data-name', city.name);
-            listItem.setAttribute('data-aqi', city.aqi);
-
+            listItem.setAttribute('data-lat', city.lat); listItem.setAttribute('data-lng', city.lng);
+            listItem.setAttribute('data-name', city.name); listItem.setAttribute('data-aqi', city.aqi);
             const colorClass = getAqiColorClass(city.aqi);
-
-            listItem.innerHTML = `
-                <span>${index + 1}. ${city.name}</span>
-                <span class="aqi-value ${colorClass}">${city.aqi}</span>
-            `;
+            listItem.innerHTML = `<span>${index + 1}. ${city.name}</span><span class="aqi-value ${colorClass}">${city.aqi}</span>`;
             listContainer.appendChild(listItem);
         });
     }
@@ -347,106 +362,77 @@
     function handleCityClick(event) {
         const cityItem = event.target.closest('.list-item');
         if (!cityItem) return;
-
-        const lat = parseFloat(cityItem.dataset.lat);
-        const lng = parseFloat(cityItem.dataset.lng);
-        const name = cityItem.dataset.name;
-        const aqi = parseInt(cityItem.dataset.aqi);
+        const lat = parseFloat(cityItem.dataset.lat); const lng = parseFloat(cityItem.dataset.lng);
+        const name = cityItem.dataset.name; const aqi = parseInt(cityItem.dataset.aqi);
         const location = new google.maps.LatLng(lat, lng);
-
-        map.setCenter(location);
-        map.setZoom(11);
-
+        map.setCenter(location); map.setZoom(11);
         const airQualityData = { indexes: [{ aqi: aqi, dominantPollutant: 'PM2.5' }] };
         displayAirQualityInfo(airQualityData, name, location);
     }
 
-    /**
-     * Fetches live news data related to air pollution.
-     */
     async function getNewsData() {
         const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f";
-        
         const query = encodeURIComponent('"air pollution" OR "air quality"');
         const newsUrl = `https://gnews.io/api/v4/search?q=${query}&lang=en&max=10&apikey=${newsApiKey}`;
         const newsListContainer = document.getElementById('news-list');
-
         try {
             const response = await fetch(newsUrl);
-            if (!response.ok) {
-                const err = new Error(`HTTP error! Status: ${response.status}`);
-                err.status = response.status;
-                throw err;
-            }
+            if (!response.ok) { const err = new Error(`HTTP error! Status: ${response.status}`); err.status = response.status; throw err; }
             const data = await response.json();
             populateNewsList(data.articles);
         } catch (error) {
             console.error("Could not fetch news:", error);
-            // FIX: Add a specific check for the 403 Forbidden error.
-            if (error.status === 401) {
-                 newsListContainer.innerHTML = `<div class="error-message">News feed error: Invalid API Key.</div>`;
-            } else if (error.status === 403) {
-                 newsListContainer.innerHTML = `<div class="error-message">News feed error: Access denied. This can happen on free plans if the API is called too frequently or from an unregistered domain.</div>`;
-            }
-            else {
-                 newsListContainer.innerHTML = `<div class="error-message">Could not load news feed.</div>`;
-            }
+            if (error.status === 401) { newsListContainer.innerHTML = `<div class="error-message">News feed error: Invalid API Key.</div>`; } 
+            else if (error.status === 403) { newsListContainer.innerHTML = `<div class="error-message">News feed error: Access denied.</div>`; }
+            else { newsListContainer.innerHTML = `<div class="error-message">Could not load news feed.</div>`; }
         }
     }
 
-    /**
-     * Populates the news widget with fetched articles.
-     * @param {Array} articles An array of article objects from the news API.
-     */
     function populateNewsList(articles) {
         const newsListContainer = document.getElementById('news-list');
-        newsListContainer.innerHTML = ''; // Clear the loader
-
-        if (!articles || articles.length === 0) {
-            newsListContainer.innerHTML = 'No recent news articles found.';
-            return;
-        }
-
+        newsListContainer.innerHTML = '';
+        if (!articles || articles.length === 0) { newsListContainer.innerHTML = 'No recent news articles found.'; return; }
         articles.forEach(article => {
             const newsItem = document.createElement('div');
             newsItem.className = 'news-item';
-            
-            // Format the date for better readability
             const publishedDate = new Date(article.publishedAt);
             const timeAgo = getTimeAgo(publishedDate);
-
-            newsItem.innerHTML = `
-                <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
-                <span class="news-source">${article.source.name} &middot; ${timeAgo}</span>
-            `;
+            newsItem.innerHTML = `<a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a><span class="news-source">${article.source.name} &middot; ${timeAgo}</span>`;
             newsListContainer.appendChild(newsItem);
         });
     }
 
-    /**
-     * Calculates how long ago a date was from now (e.g., "2 hours ago").
-     * @param {Date} date The date to compare.
-     * @returns {string} A string representing the time elapsed.
-     */
     function getTimeAgo(date) {
-        const seconds = Math.floor((new Date() - date) / 1000);
-        let interval = seconds / 31536000;
-        if (interval > 1) return Math.floor(interval) + " years ago";
-        interval = seconds / 2592000;
-        if (interval > 1) return Math.floor(interval) + " months ago";
-        interval = seconds / 86400;
-        if (interval > 1) return Math.floor(interval) + " days ago";
-        interval = seconds / 3600;
-        if (interval > 1) return Math.floor(interval) + " hours ago";
-        interval = seconds / 60;
+        const seconds = Math.floor((new Date() - date) / 1000); let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + " years ago"; interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + " months ago"; interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + " days ago"; interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + " hours ago"; interval = seconds / 60;
         if (interval > 1) return Math.floor(interval) + " minutes ago";
         return Math.floor(seconds) + " seconds ago";
     }
 
     document.addEventListener('DOMContentLoaded', () => {
         loadMapScript();
-    });
 
+        // --- ADDED: SIDEBAR TOGGLE LOGIC ---
+        const toggleButton = document.getElementById('sidebar-toggle-btn');
+        const dashboardContainer = document.querySelector('.dashboard-container');
+
+        if (toggleButton && dashboardContainer) {
+            toggleButton.addEventListener('click', () => {
+                dashboardContainer.classList.toggle('sidebar-collapsed');
+                
+                // This is crucial. It tells the Google Map to redraw itself 
+                // after the sidebar transition has finished.
+                setTimeout(() => {
+                    if (map) {
+                        google.maps.event.trigger(map, 'resize');
+                    }
+                }, 400); // Must match the CSS transition duration
+            });
+        }
+    });
     </script>
 </body>
 </html>
