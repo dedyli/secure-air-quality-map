@@ -12,6 +12,45 @@
         .aqi-value.aqi-moderate { color: #FFFF00; }
         .aqi-value.aqi-sensitive { color: #FF7E00; }
         .aqi-value.aqi-unhealthy { color: #FF0000; }
+
+        /* CSS FOR AQI LEGEND ON MAP */
+        #legend-map {
+            position: absolute;
+            bottom: 30px;
+            right: 10px;
+            background-color: rgba(30, 30, 30, 0.85);
+            backdrop-filter: blur(5px);
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            z-index: 5;
+            font-size: 14px;
+            line-height: 1.5;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        #legend-map h4 {
+            margin: 0 0 8px 0;
+            text-align: center;
+            font-weight: 500;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+        #legend-map div {
+            display: flex;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        #legend-map div:last-child {
+            margin-bottom: 0;
+        }
+        #legend-map span {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            margin-right: 10px;
+            display: inline-block;
+            border: 1px solid #555;
+        }
     </style>
 </head>
 <body>
@@ -28,6 +67,14 @@
                 <button id="search-button">Search</button>
             </div>
             <div id="map"></div>
+            <!-- The legend is now inside the map panel -->
+            <div id="legend-map">
+                <h4>AQI Legend</h4>
+                <div><span style="background-color: #00E400;"></span> 0-50: Good</div>
+                <div><span style="background-color: #FFFF00;"></span> 51-100: Moderate</div>
+                <div><span style="background-color: #FF7E00;"></span> 101-150: Unhealthy for Sensitive</div>
+                <div><span style="background-color: #FF0000;"></span> 151+: Unhealthy</div>
+            </div>
         </main>
 
         <aside class="sidebar">
@@ -36,7 +83,7 @@
                 <h3 class="widget-title">Top 10 Most Polluted Cities</h3>
                 <!-- This list will now be populated dynamically by JavaScript -->
                 <div id="top-cities-list" class="widget-content">
-                    <div class="loader">Loading live data...</div>
+                    <div class="loader">Loading city data...</div>
                 </div>
             </div>
 
@@ -53,35 +100,8 @@
             <div class="widget">
                 <h3 class="widget-title">Air Pollution News & Research</h3>
                 <div id="news-list" class="widget-content scrollable">
-                    <!-- News items would be populated dynamically from a news API -->
-                    <div class="news-item">
-                        <a href="#" target="_blank">New Study Links Air Pollution to Increased Health Risks in Urban Centers</a>
-                        <span class="news-source">Science Daily &middot; 2 hours ago</span>
-                    </div>
-                     <div class="news-item">
-                        <a href="#" target="_blank">Major Cities Announce New Clean Air Initiatives Ahead of Global Summit</a>
-                        <span class="news-source">Reuters &middot; 5 hours ago</span>
-                    </div>
-                    <div class="news-item">
-                        <a href="#" target="_blank">AI Models Improve Accuracy of Wildfire Smoke and Pollution Forecasting</a>
-                        <span class="news-source">TechCrunch &middot; 1 day ago</span>
-                    </div>
-                     <div class="news-item">
-                        <a href="#" target="_blank">The Economic Impact of Air Pollution on Developing Nations</a>
-                        <span class="news-source">The World Bank &middot; 2 days ago</span>
-                    </div>
+                    <div class="loader">Loading news feed...</div>
                 </div>
-            </div>
-
-            <!-- AQI Legend Widget (Moved from map overlay to the sidebar) -->
-            <div class="widget">
-                 <h3 class="widget-title">AQI Legend</h3>
-                 <div id="legend" class="widget-content">
-                    <div><span style="background-color: #00E400;"></span> 0-50: Good</div>
-                    <div><span style="background-color: #FFFF00;"></span> 51-100: Moderate</div>
-                    <div><span style="background-color: #FF7E00;"></span> 101-150: Unhealthy for Sensitive</div>
-                    <div><span style="background-color: #FF0000;"></span> 151+: Unhealthy</div>
-                 </div>
             </div>
         </aside>
     </div>
@@ -148,12 +168,10 @@
 
         map.addListener('click', async (mapsMouseEvent) => {
             const latLng = mapsMouseEvent.latLng;
-            // Immediately show a loading message
             infoWindow.setPosition(latLng);
             infoWindow.setContent('Fetching location data...');
             infoWindow.open(map);
             try {
-                // Now perform the asynchronous lookups
                 const [locationName, airQualityData] = await Promise.all([
                     getLocationName(latLng),
                     getAirQualityData(latLng.toJSON())
@@ -175,6 +193,8 @@
         initCharts();
         populateTopCitiesList();
         document.getElementById('top-cities-list').addEventListener('click', handleCityClick);
+        // Fetch and display news
+        getNewsData();
     }
 
     async function geocodeAddress(address) {
@@ -200,11 +220,6 @@
         });
     }
 
-    /**
-     * FIX: Performs reverse geocoding to get a location name from coordinates.
-     * @param {google.maps.LatLng} latLng The coordinates to look up.
-     * @returns {Promise<string>} A promise that resolves with the location name.
-     */
     async function getLocationName(latLng) {
         return new Promise((resolve, reject) => {
             geocoder.geocode({ 'location': latLng }, (results, status) => {
@@ -216,7 +231,7 @@
                     }
                 } else {
                     console.error("Geocoder failed due to: " + status);
-                    resolve("Location name not found"); // Resolve with a default on error
+                    resolve("Location name not found");
                 }
             });
         });
@@ -239,7 +254,7 @@
         if (aqi <= 50) return 'aqi-good';
         if (aqi <= 100) return 'aqi-moderate';
         if (aqi <= 150) return 'aqi-sensitive';
-        return 'aqi-unhealthy'; // Covers 151+
+        return 'aqi-unhealthy';
     }
 
     function getSimulatedHeatmapData() {
@@ -344,6 +359,88 @@
 
         const airQualityData = { indexes: [{ aqi: aqi, dominantPollutant: 'PM2.5' }] };
         displayAirQualityInfo(airQualityData, name, location);
+    }
+
+    /**
+     * Fetches live news data related to air pollution.
+     */
+    async function getNewsData() {
+        const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f";
+        
+        const query = encodeURIComponent('"air pollution" OR "air quality"');
+        const newsUrl = `https://gnews.io/api/v4/search?q=${query}&lang=en&max=10&apikey=${newsApiKey}`;
+        const newsListContainer = document.getElementById('news-list');
+
+        try {
+            const response = await fetch(newsUrl);
+            if (!response.ok) {
+                const err = new Error(`HTTP error! Status: ${response.status}`);
+                err.status = response.status;
+                throw err;
+            }
+            const data = await response.json();
+            populateNewsList(data.articles);
+        } catch (error) {
+            console.error("Could not fetch news:", error);
+            // FIX: Add a specific check for the 403 Forbidden error.
+            if (error.status === 401) {
+                 newsListContainer.innerHTML = `<div class="error-message">News feed error: Invalid API Key.</div>`;
+            } else if (error.status === 403) {
+                 newsListContainer.innerHTML = `<div class="error-message">News feed error: Access denied. This can happen on free plans if the API is called too frequently or from an unregistered domain.</div>`;
+            }
+            else {
+                 newsListContainer.innerHTML = `<div class="error-message">Could not load news feed.</div>`;
+            }
+        }
+    }
+
+    /**
+     * Populates the news widget with fetched articles.
+     * @param {Array} articles An array of article objects from the news API.
+     */
+    function populateNewsList(articles) {
+        const newsListContainer = document.getElementById('news-list');
+        newsListContainer.innerHTML = ''; // Clear the loader
+
+        if (!articles || articles.length === 0) {
+            newsListContainer.innerHTML = 'No recent news articles found.';
+            return;
+        }
+
+        articles.forEach(article => {
+            const newsItem = document.createElement('div');
+            newsItem.className = 'news-item';
+            
+            // Format the date for better readability
+            const publishedDate = new Date(article.publishedAt);
+            const timeAgo = getTimeAgo(publishedDate);
+
+            newsItem.innerHTML = `
+                <a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a>
+                <span class="news-source">${article.source.name} &middot; ${timeAgo}</span>
+            `;
+            newsListContainer.appendChild(newsItem);
+        });
+    }
+
+    /**
+     * Calculates how long ago a date was from now (e.g., "2 hours ago").
+     * @param {Date} date The date to compare.
+     * @returns {string} A string representing the time elapsed.
+     */
+    function getTimeAgo(date) {
+        const seconds = Math.floor((new Date() - date) / 1000);
+        let interval = seconds / 31536000;
+        if (interval > 1) return Math.floor(interval) + " years ago";
+        interval = seconds / 2592000;
+        if (interval > 1) return Math.floor(interval) + " months ago";
+        interval = seconds / 86400;
+        if (interval > 1) return Math.floor(interval) + " days ago";
+        interval = seconds / 3600;
+        if (interval > 1) return Math.floor(interval) + " hours ago";
+        interval = seconds / 60;
+        if (interval > 1) return Math.floor(interval) + " minutes ago";
+        return Math.floor(seconds) + " seconds ago";
     }
 
     document.addEventListener('DOMContentLoaded', () => {
