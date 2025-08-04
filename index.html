@@ -17,7 +17,7 @@
 <body>
     <header class="dashboard-header">
         <h1>Global Air Quality Monitoring Dashboard</h1>
-        <p>IEDE Research Topic: AI-Driven Environmental Monitoring for a Green Economy</p>
+        <p>Group 62 IEDE Research Topic: AI-Driven Environmental Monitoring for a Green Economy</p>
     </header>
 
     <div class="dashboard-container">
@@ -148,7 +148,12 @@
 
         map.addListener('click', async (mapsMouseEvent) => {
             const latLng = mapsMouseEvent.latLng;
+            // Immediately show a loading message
+            infoWindow.setPosition(latLng);
+            infoWindow.setContent('Fetching location data...');
+            infoWindow.open(map);
             try {
+                // Now perform the asynchronous lookups
                 const [locationName, airQualityData] = await Promise.all([
                     getLocationName(latLng),
                     getAirQualityData(latLng.toJSON())
@@ -195,7 +200,28 @@
         });
     }
 
-    async function getLocationName(latLng) { return "Clicked Location"; }
+    /**
+     * FIX: Performs reverse geocoding to get a location name from coordinates.
+     * @param {google.maps.LatLng} latLng The coordinates to look up.
+     * @returns {Promise<string>} A promise that resolves with the location name.
+     */
+    async function getLocationName(latLng) {
+        return new Promise((resolve, reject) => {
+            geocoder.geocode({ 'location': latLng }, (results, status) => {
+                if (status === 'OK') {
+                    if (results[0]) {
+                        resolve(results[0].formatted_address);
+                    } else {
+                        resolve("Location name not found");
+                    }
+                } else {
+                    console.error("Geocoder failed due to: " + status);
+                    resolve("Location name not found"); // Resolve with a default on error
+                }
+            });
+        });
+    }
+
     async function getAirQualityData(latLngJson) {
         return { indexes: [{ aqi: Math.floor(Math.random() * 200) + 20, dominantPollutant: 'PM2.5' }] };
     }
@@ -209,11 +235,6 @@
         return 'Hazardous';
     }
 
-    /**
-     * NEW: Returns a CSS class name based on the AQI value for coloring.
-     * @param {number} aqi The Air Quality Index value.
-     * @returns {string} The corresponding CSS class for color.
-     */
     function getAqiColorClass(aqi) {
         if (aqi <= 50) return 'aqi-good';
         if (aqi <= 100) return 'aqi-moderate';
@@ -298,7 +319,6 @@
             listItem.setAttribute('data-name', city.name);
             listItem.setAttribute('data-aqi', city.aqi);
 
-            // Get the correct color class based on the AQI value
             const colorClass = getAqiColorClass(city.aqi);
 
             listItem.innerHTML = `
@@ -319,7 +339,6 @@
         const aqi = parseInt(cityItem.dataset.aqi);
         const location = new google.maps.LatLng(lat, lng);
 
-        // FIX: Use setCenter and a closer zoom level
         map.setCenter(location);
         map.setZoom(11);
 
