@@ -227,7 +227,16 @@
         return locations.map(loc => ({ location: new google.maps.LatLng(loc.lat, loc.lng), weight: loc.weight }));
     }
 
+    /**
+     * Displays the fetched air quality data in the map's info window.
+     * @param {object} data The air quality data object.
+     * @param {string} locationName The name of the location.
+     * @param {google.maps.LatLng} position The position for the info window.
+     */
     function displayAirQualityInfo(data, locationName, position) {
+        // FIX: Set the info window's position every time the function is called.
+        infoWindow.setPosition(position);
+
         if (data.error || !data.indexes || data.indexes.length === 0) {
             infoWindow.setContent(`<div class="info-window-content"><strong>${locationName}</strong><br>No air quality data available.</div>`);
             infoWindow.open(map);
