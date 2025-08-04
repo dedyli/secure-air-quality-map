@@ -10,7 +10,7 @@
 <body>
     <header class="dashboard-header">
         <h1>Global Air Quality Monitoring Dashboard</h1>
-        <p>Group 62 IEDE Research Topic: AI-Driven Environmental Monitoring for a Green Economy</p>
+        <p>IEDE Research Topic: AI-Driven Environmental Monitoring for a Green Economy</p>
     </header>
 
     <div class="dashboard-container">
@@ -27,18 +27,9 @@
             <!-- Widget 1: Top Polluted Cities -->
             <div class="widget">
                 <h3 class="widget-title">Top 10 Most Polluted Cities</h3>
+                <!-- This list will now be populated dynamically by JavaScript -->
                 <div id="top-cities-list" class="widget-content">
-                    <!-- This list would be populated dynamically from your data source -->
-                    <div class="list-item"><span>1. Ghaziabad, India</span><span class="aqi-value aqi-unhealthy">185</span></div>
-                    <div class="list-item"><span>2. Hotan, China</span><span class="aqi-value aqi-unhealthy">172</span></div>
-                    <div class="list-item"><span>3. Lahore, Pakistan</span><span class="aqi-value aqi-unhealthy">166</span></div>
-                    <div class="list-item"><span>4. Delhi, India</span><span class="aqi-value aqi-unhealthy">160</span></div>
-                    <div class="list-item"><span>5. Jakarta, Indonesia</span><span class="aqi-value aqi-sensitive">152</span></div>
-                    <div class="list-item"><span>6. Dhaka, Bangladesh</span><span class="aqi-value aqi-sensitive">148</span></div>
-                    <div class="list-item"><span>7. Ulaanbaatar, Mongolia</span><span class="aqi-value aqi-sensitive">145</span></div>
-                    <div class="list-item"><span>8. Hanoi, Vietnam</span><span class="aqi-value aqi-sensitive">141</span></div>
-                    <div class="list-item"><span>9. Kathmandu, Nepal</span><span class="aqi-value aqi-sensitive">138</span></div>
-                    <div class="list-item"><span>10. Dubai, UAE</span><span class="aqi-value aqi-moderate">98</span></div>
+                    <div class="loader">Loading live data...</div>
                 </div>
             </div>
 
@@ -98,15 +89,29 @@
     let infoWindow;
     let geocoder;
 
+    // --- Data for Top Cities Widget ---
+    const topCitiesData = [
+        { name: "Ghaziabad, India", lat: 28.6692, lng: 77.4538, aqi: 185 },
+        { name: "Hotan, China", lat: 37.1141, lng: 79.9246, aqi: 172 },
+        { name: "Lahore, Pakistan", lat: 31.5204, lng: 74.3587, aqi: 166 },
+        { name: "Delhi, India", lat: 28.7041, lng: 77.1025, aqi: 160 },
+        { name: "Jakarta, Indonesia", lat: -6.2088, lng: 106.8456, aqi: 152 },
+        { name: "Dhaka, Bangladesh", lat: 23.8103, lng: 90.4125, aqi: 148 },
+        { name: "Ulaanbaatar, Mongolia", lat: 47.9185, lng: 106.9177, aqi: 145 },
+        { name: "Hanoi, Vietnam", lat: 21.0278, lng: 105.8342, aqi: 141 },
+        { name: "Kathmandu, Nepal", lat: 27.7172, lng: 85.3240, aqi: 138 },
+        { name: "Dubai, UAE", lat: 25.276987, lng: 55.296249, aqi: 98 }
+    ];
+
     /**
-     * Initializes the Google Map, heatmap, and event listeners.
+     * Initializes the Google Map and all other interactive components.
+     * This function is the designated callback for the Google Maps script.
      */
     function initMap() {
         map = new google.maps.Map(document.getElementById('map'), {
             center: { lat: 20, lng: 0 },
             zoom: 3,
             mapTypeId: 'satellite',
-            // Styles for a dark-themed map to match the dashboard
             styles: [
                 { elementType: 'geometry', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] },
                 { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] }, { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
@@ -123,7 +128,6 @@
         infoWindow = new google.maps.InfoWindow();
         geocoder = new google.maps.Geocoder();
 
-        // The heatmap layer for visualizing air quality data distribution
         const airQualityHeatmap = new google.maps.visualization.HeatmapLayer({
             data: getSimulatedHeatmapData(),
             map: map,
@@ -135,15 +139,12 @@
             ]
         });
 
-        // Event listener for clicking on the map to get AQI data
         map.addListener('click', async (mapsMouseEvent) => {
             const latLng = mapsMouseEvent.latLng;
             infoWindow.setPosition(latLng);
             infoWindow.setContent('Fetching location and air quality data...');
             infoWindow.open(map);
             try {
-                // In a real application, you would fetch both location name and AQI data
-                // For this example, we'll use placeholder data.
                 const [locationName, airQualityData] = await Promise.all([
                     getLocationName(latLng),
                     getAirQualityData(latLng.toJSON())
@@ -151,20 +152,21 @@
                 displayAirQualityInfo(airQualityData, locationName, latLng);
             } catch (error) {
                 console.error('Detailed Error:', error);
-                infoWindow.setContent(
-                    `<div class="info-window-content"><strong>Error:</strong> ${error.message}</div>`
-                );
+                infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> ${error.message}</div>`);
             }
         });
 
-        // --- Setup for the search functionality ---
         const searchButton = document.getElementById('search-button');
         const addressInput = document.getElementById('address-input');
-
         searchButton.addEventListener('click', () => geocodeAddress(addressInput.value));
         addressInput.addEventListener('keyup', (event) => {
             if (event.key === 'Enter') geocodeAddress(addressInput.value);
         });
+
+        // --- FIX: Initialize other components AFTER the map is ready ---
+        initCharts();
+        populateTopCitiesList();
+        document.getElementById('top-cities-list').addEventListener('click', handleCityClick);
     }
 
     /**
@@ -189,9 +191,7 @@
                     displayAirQualityInfo(airQualityData, results[0].formatted_address, location);
                 } catch (error) {
                     console.error('Geocode Error:', error);
-                    infoWindow.setContent(
-                        `<div class="info-window-content"><strong>Error:</strong> Could not retrieve data for this location.</div>`
-                    );
+                    infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> Could not retrieve data for this location.</div>`);
                 }
             } else {
                 alert('Geocode was not successful for the following reason: ' + status);
@@ -199,19 +199,11 @@
         });
     }
 
-    // --- Placeholder functions for fetching data ---
-    // In a real application, these would make API calls to your backend.
     async function getLocationName(latLng) { return "Clicked Location"; }
     async function getAirQualityData(latLngJson) {
-        // Simulating an API call with random data
         return { indexes: [{ aqi: Math.floor(Math.random() * 200) + 20, dominantPollutant: 'PM2.5' }] };
     }
     
-    /**
-     * Returns a text category based on the AQI value.
-     * @param {number} aqi The Air Quality Index value.
-     * @returns {string} The corresponding category name.
-     */
     function getStandardCategoryFromAqi(aqi) {
         if (aqi <= 50) return 'Good';
         if (aqi <= 100) return 'Moderate';
@@ -221,10 +213,6 @@
         return 'Hazardous';
     }
 
-    /**
-     * Generates simulated data points for the heatmap.
-     * @returns {Array<google.maps.LatLng>} An array of weighted locations.
-     */
     function getSimulatedHeatmapData() {
         const locations = [
             { lat: 34.0522, lng: -118.2437, weight: 120 }, { lat: 19.4326, lng: -99.1332, weight: 150 },
@@ -239,15 +227,10 @@
         return locations.map(loc => ({ location: new google.maps.LatLng(loc.lat, loc.lng), weight: loc.weight }));
     }
 
-    /**
-     * Displays the fetched air quality data in the map's info window.
-     * @param {object} data The air quality data object.
-     * @param {string} locationName The name of the location.
-     * @param {google.maps.LatLng} position The position for the info window.
-     */
     function displayAirQualityInfo(data, locationName, position) {
         if (data.error || !data.indexes || data.indexes.length === 0) {
             infoWindow.setContent(`<div class="info-window-content"><strong>${locationName}</strong><br>No air quality data available.</div>`);
+            infoWindow.open(map);
             return;
         }
         const { aqi, dominantPollutant } = data.indexes[0];
@@ -257,62 +240,83 @@
         infoWindow.open(map);
     }
 
-    /**
-     * Dynamically loads the Google Maps script.
-     */
     function loadMapScript() {
         const script = document.createElement('script');
-        // The API Key from your original file has been inserted here.
         const CLIENT_SIDE_API_KEY = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM";
         script.src = `https://maps.googleapis.com/maps/api/js?key=${CLIENT_SIDE_API_KEY}&libraries=visualization,places&callback=initMap`;
         script.async = true;
         script.defer = true;
         script.onerror = () => {
-            // Handle script loading errors, e.g., if the API key is invalid
             document.getElementById('map').innerText = 'Error: Could not load Google Maps. Please check the API key and network connection.';
         };
         document.head.appendChild(script);
     }
     
-    /**
-     * Initializes the Chart.js trend chart with sample data.
-     */
     function initCharts() {
         const ctx = document.getElementById('aqiTrendChart').getContext('2d');
         const trendChart = new Chart(ctx, {
             type: 'line',
             data: {
-                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], // Example: Last 7 days
+                labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
                 datasets: [{
                     label: 'Global Average AQI',
-                    // Sample data for the trend line
                     data: [55, 60, 58, 62, 70, 75, 72],
                     borderColor: '#4C8BF5',
                     backgroundColor: 'rgba(76, 139, 245, 0.2)',
                     fill: true,
-                    tension: 0.4 // Makes the line smooth
+                    tension: 0.4
                 }]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                scales: {
-                    y: { beginAtZero: false }
-                },
-                plugins: {
-                    legend: {
-                        display: false // Hide legend for a cleaner look
-                    }
-                }
+                scales: { y: { beginAtZero: false } },
+                plugins: { legend: { display: false } }
             }
         });
     }
 
+    function populateTopCitiesList() {
+        const listContainer = document.getElementById('top-cities-list');
+        listContainer.innerHTML = ''; // Clear the "Loading..." message
+
+        topCitiesData.forEach((city, index) => {
+            const listItem = document.createElement('div');
+            listItem.className = 'list-item';
+            listItem.setAttribute('data-lat', city.lat);
+            listItem.setAttribute('data-lng', city.lng);
+            listItem.setAttribute('data-name', city.name);
+            listItem.setAttribute('data-aqi', city.aqi);
+
+            listItem.innerHTML = `
+                <span>${index + 1}. ${city.name}</span>
+                <span class="aqi-value">${city.aqi}</span>
+            `;
+            listContainer.appendChild(listItem);
+        });
+    }
+
+    function handleCityClick(event) {
+        const cityItem = event.target.closest('.list-item');
+        if (!cityItem) return;
+
+        const lat = parseFloat(cityItem.dataset.lat);
+        const lng = parseFloat(cityItem.dataset.lng);
+        const name = cityItem.dataset.name;
+        const aqi = parseInt(cityItem.dataset.aqi);
+        const location = new google.maps.LatLng(lat, lng);
+
+        map.panTo(location);
+        map.setZoom(9);
+
+        const airQualityData = { indexes: [{ aqi: aqi, dominantPollutant: 'PM2.5' }] };
+        displayAirQualityInfo(airQualityData, name, location);
+    }
+
     // --- Main execution block ---
-    // Waits for the DOM to be fully loaded before running scripts.
+    // This listener just kicks off the map loading process.
     document.addEventListener('DOMContentLoaded', () => {
         loadMapScript();
-        initCharts();
     });
 
     </script>
