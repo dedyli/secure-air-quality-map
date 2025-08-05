@@ -23,7 +23,7 @@
         }
         .dashboard-container {
             display: flex;
-            flex-direction: row-reverse; /* <-- MOVES SIDEBAR TO THE RIGHT */
+            flex-direction: row-reverse; 
             height: 100vh;
         }
         .sidebar {
@@ -34,8 +34,8 @@
             flex-direction: column;
             gap: 20px;
             overflow-y: auto;
-            border-left: 1px solid var(--border-color); /* <-- CHANGED BORDER FROM RIGHT TO LEFT */
-            transition: margin-right 0.4s ease; /* <-- CHANGED TRANSITION TO MARGIN-RIGHT */
+            border-left: 1px solid var(--border-color); 
+            transition: margin-right 0.4s ease;
         }
         .main-content {
             flex-grow: 1;
@@ -73,10 +73,7 @@
         #header-logo {
             height: 50px;
             margin-right: 20px;
-            background-color: #ffffff;
-            border-radius: 4px;
-            padding: 2px;
-            box-sizing: border-box;
+            box-sizing: border-box; /* <-- REMOVED STYLES FOR WHITE BACKGROUND */
         }
         .header-text { flex-grow: 1; }
         .header-text h1 { font-size: 22px; margin: 0 0 4px 0; color: #EAEAEA; }
@@ -124,9 +121,38 @@
         .info-window-content { color: #111; }
         .loader { text-align: center; padding: 20px; color: var(--text-secondary); }
         .error-message { padding: 20px; text-align: center; background-color: #5d3434; border-radius: 8px; }
-        /* <-- UPDATED COLLAPSE STYLE FOR RIGHT SIDEBAR */
         .dashboard-container.sidebar-collapsed .sidebar {
             margin-right: -391px;
+        }
+        /* --- NEW STYLES FOR MAP LEGEND --- */
+        .map-legend {
+            background: rgba(42, 42, 46, 0.9);
+            padding: 10px 15px;
+            margin: 15px !important; /* Use !important to override Google Maps default margins */
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            font-size: 12px;
+        }
+        .map-legend h4 {
+            margin: 0 0 10px 0;
+            padding-bottom: 5px;
+            border-bottom: 1px solid var(--border-color);
+            font-weight: 600;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        .legend-item:last-child {
+            margin-bottom: 0;
+        }
+        .legend-color-box {
+            width: 18px;
+            height: 18px;
+            margin-right: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
         }
     </style>
 </head>
@@ -163,7 +189,7 @@
         </div>
         <main class="main-content">
             <header class="dashboard-header">
-                <img src="https://upload.wikimedia.org/wikipedia/en/thumb/9/96/Tsinghua_University_logo.svg/300px-Tsinghua_University_logo.svg.png" alt="Tsinghua University Logo" id="header-logo">
+                <img src="Tsinghua_University_logo_and_wordmark_in_Chinese_and_English_characters.svg.png" alt="Tsinghua University Logo" id="header-logo">
                 <div class="header-text">
                     <h1>Global Air Quality Monitoring Dashboard</h1>
                     <p>Group 62 IEDE Research Topic: <em>AI-Driven Environmental Monitoring for a Green Economy</em></p>
@@ -248,6 +274,7 @@
 
         initDashboard();
         setupEventListeners();
+        createMapLegend(); // <-- ADDED LEGEND TO MAP
     };
 
     function initDashboard() {
@@ -520,14 +547,12 @@
             return; 
         } 
         
-        const { aqi, category, pm25Value, pm25Unit, source, dominantPollutant } = data;
+        const { aqi, category, pm25Value, pm25Unit, dominantPollutant } = data;
         const colorClass = getAqiColorClass(aqi);
         let contentHtml = `<div class="info-window-content"><h3>${locationName}</h3><p><strong>AQI:</strong> <span style="color: ${getColorFromClass(colorClass)}">${aqi}</span></p><p><strong>Category:</strong> ${category}</p>`;
         if (pm25Value) { contentHtml += `<p><strong>PM2.5:</strong> ${pm25Value.toFixed(1)} ${pm25Unit}</p>`; }
         if (dominantPollutant) { contentHtml += `<p><strong>Main Pollutant:</strong> ${dominantPollutant.toUpperCase()}</p>`; }
-        // The following line has been removed to hide the source
-        // contentHtml += `<p><small>Source: ${source}</small></p></div>`;
-        contentHtml += `</div>`; // Close the main div
+        contentHtml += `</div>`;
         infoWindow.setContent(contentHtml); 
         infoWindow.open(map); 
     }
@@ -614,6 +639,32 @@
         interval = seconds / 3600; if (interval > 1) return Math.floor(interval) + " hours ago";
         interval = seconds / 60; if (interval > 1) return Math.floor(interval) + " minutes ago";
         return Math.floor(seconds) + " seconds ago";
+    }
+
+    // --- NEW FUNCTION TO CREATE MAP LEGEND ---
+    function createMapLegend() {
+        const legend = document.createElement('div');
+        legend.className = 'map-legend';
+        
+        const legendItems = [
+            { color: '#00E400', label: 'Good (0-50)' },
+            { color: '#FFFF00', label: 'Moderate (51-100)' },
+            { color: '#FF7E00', label: 'Sensitive (101-150)' },
+            { color: '#FF0000', label: 'Unhealthy (151+)' }
+        ];
+
+        let content = '<h4>AQI Legend</h4>';
+        legendItems.forEach(item => {
+            content += `
+                <div class="legend-item">
+                    <span class="legend-color-box" style="background-color:${item.color};"></span>
+                    ${item.label}
+                </div>
+            `;
+        });
+        
+        legend.innerHTML = content;
+        map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(legend);
     }
     
     // --- Initial Load ---
