@@ -227,8 +227,7 @@
     // --- Configuration ---
     let map, infoWindow, geocoder;
     const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; 
-    // FIXED: Correct Netlify function endpoint
-    const backendProxyUrl = "/.netlify/functions/openaq/"; 
+    const backendProxyUrl = "/api/"; 
     const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f"; 
 
     // --- Initialization ---
@@ -324,89 +323,56 @@
         const container = document.getElementById('top-cities-list');
         container.innerHTML = '<div class="loader">Loading live city data...</div>';
         
-        // FIXED: Use correct OpenAQ v3 API endpoint for PM2.5 latest values
         const params = new URLSearchParams({
-            limit: 100
+            limit: 100,
+            page: 1,
+            offset: 0,
+            sort: 'desc',
+            parameters_id: 2, 
+            order_by: 'lastValue'
         });
-        const url = `${backendProxyUrl}parameters/2/latest?${params.toString()}`;
+        const url = `${backendProxyUrl}latest?${params.toString()}`;
 
         try {
-            console.log('Fetching from URL:', url); // Debug log
             const response = await fetch(url);
-            console.log('Response status:', response.status); // Debug log
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API Error response:', errorText);
-                throw new Error(`API Error (${response.status}): ${errorText}`);
-            }
-            
+            if (!response.ok) throw new Error(`API Error (${response.status}): ${await response.text()}`);
             const data = await response.json();
-            console.log('API Response data:', data); // Debug log
 
             if (data.results && data.results.length > 0) {
-                // Sort by value in descending order to get most polluted cities
-                const sortedResults = data.results.sort((a, b) => b.value - a.value);
-                populateTopCitiesList(sortedResults.slice(0, 5));
+                const filteredResults = data.results.filter(r => r.city);
+                populateTopCitiesList(filteredResults.slice(0, 5));
             } else {
                 container.innerHTML = '<div class="error-message">No live city data available.</div>';
             }
         } catch (error) {
             console.error("Error fetching top polluted cities:", error);
-            container.innerHTML = `<div class="error-message">Could not load city data: ${error.message}</div>`;
+            container.innerHTML = `<div class="error-message">Could not load city data. Check proxy.</div>`;
         }
     }
 
     async function getAirQualityDataFromCoords(lat, lng) {
-        // FIXED: Use OpenAQ v3 API to find locations near coordinates first
         const params = new URLSearchParams({
             coordinates: `${lat},${lng}`,
             radius: 10000,
-            parameters_id: 2, // PM2.5
-            limit: 1
+            parameters_id: 2,
+            sort: 'desc',
+            order_by: 'distance'
         });
-        const url = `${backendProxyUrl}locations?${params.toString()}`;
-        
-        console.log('Fetching air quality data from:', url); // Debug log
+        const url = `${backendProxyUrl}latest?${params.toString()}`;
         const response = await fetch(url);
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            console.error('Air quality API error:', errorText);
-            throw new Error(`Failed to fetch Air Quality data: ${response.status}`);
-        }
+        if (!response.ok) throw new Error('Failed to fetch Air Quality data.');
         
         const data = await response.json();
-        console.log('Air quality API response:', data); // Debug log
-        
         if (data.results && data.results.length > 0) {
-            const location = data.results[0];
-            // Get the latest measurement for this location
-            const latestUrl = `${backendProxyUrl}locations/${location.id}/latest`;
-            const latestResponse = await fetch(latestUrl);
-            
-            if (latestResponse.ok) {
-                const latestData = await latestResponse.json();
-                console.log('Latest data response:', latestData);
-                
-                if (latestData.results && latestData.results.length > 0) {
-                    const pm25Result = latestData.results.find(r => r.parameter.id === 2);
-                    if (pm25Result) {
-                        return {
-                            value: pm25Result.value,
-                            location: location.name,
-                            coordinates: location.coordinates
-                        };
-                    }
-                }
+            const measurement = data.results[0].parameters.find(p => p.parameterId === 2);
+            if (measurement) {
+                return {
+                    value: measurement.lastValue,
+                    location: data.results[0].location, // Use .location for station name
+                    coordinates: data.results[0].coordinates
+                };
             }
-            
-            // Fallback: return location info even if no latest data
-            return {
-                value: null,
-                location: location.name,
-                coordinates: location.coordinates
-            };
         }
         throw new Error('No PM2.5 stations found near this location.');
     }
@@ -416,56 +382,38 @@
         const dateFrom = new Date();
         dateFrom.setDate(dateFrom.getDate() - 7);
         
-        // FIXED: For weekly trend, we'll use a specific sensor or location
-        // First, let's find a location in Los Angeles area
-        const locationParams = new URLSearchParams({
-            coordinates: '34.0522,-118.2437', // Los Angeles coordinates
-            radius: 20000,
-            parameters_id: 2,
-            limit: 1
+        // FIX: Corrected parameter to 'parameters_id' for v3
+        const params = new URLSearchParams({
+            date_from: dateFrom.toISOString(),
+            date_to: dateTo.toISOString(),
+            location_id: 1936, 
+            parameters_id: 2,  
+            limit: 500,
+            sort: 'desc'
         });
-        const locationUrl = `${backendProxyUrl}locations?${locationParams.toString()}`;
+        // FIX: Using the correct '/measurements' endpoint
+        const url = `${backendProxyUrl}measurements?${params.toString()}`;
 
         try {
-            const locationResponse = await fetch(locationUrl);
-            if (!locationResponse.ok) {
-                throw new Error('Could not find location for trend data');
-            }
-            
-            const locationData = await locationResponse.json();
-            if (!locationData.results || locationData.results.length === 0) {
-                return { labels: [], data: [] };
-            }
-            
-            const location = locationData.results[0];
-            
-            // Now get daily averages for this location
-            const params = new URLSearchParams({
-                date_from: dateFrom.toISOString().split('T')[0],
-                date_to: dateTo.toISOString().split('T')[0],
-                limit: 100
-            });
-            const url = `${backendProxyUrl}locations/${location.id}/days?${params.toString()}`;
-
-            console.log('Fetching weekly trend from:', url); // Debug log
             const response = await fetch(url);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Weekly trend API error:', errorText);
-                throw new Error(`API Error (${response.status}): ${errorText}`);
-            }
-            
+            if (!response.ok) throw new Error(`API Error (${response.status}): ${await response.text()}`);
             const data = await response.json();
-            console.log('Weekly trend API response:', data); // Debug log
             
             if(data.results && data.results.length > 0) {
-                const labels = data.results.map(item => {
-                    return new Date(item.day).toLocaleDateString('en-US', { weekday: 'short' });
+                const dailyData = {};
+                data.results.forEach(res => {
+                    const day = res.date.local.split('T')[0];
+                    if (!dailyData[day]) dailyData[day] = [];
+                    dailyData[day].push(res.value);
                 });
-                const chartData = data.results.map(item => item.value);
 
-                return { labels, data: chartData };
+                const labels = Object.keys(dailyData).sort();
+                const chartData = labels.map(day => {
+                    const values = dailyData[day];
+                    return values.reduce((a, b) => a + b, 0) / values.length;
+                });
+
+                return { labels: labels.map(l => new Date(l).toLocaleDateString('en-US', { weekday: 'short' })), data: chartData };
             }
             return { labels: [], data: [] };
         } catch (error) {
@@ -483,19 +431,22 @@
         cities.forEach((city, index) => {
             const listItem = document.createElement('div');
             listItem.className = 'list-item';
+            const pm25 = city.parameters.find(p => p.parameterId === 2);
+            if (!pm25) return;
 
-            // OpenAQ v3 API structure - data is directly available
+            // FIX: Use 'location' for station name from v3 API response
             listItem.setAttribute('data-lat', city.coordinates.latitude);
             listItem.setAttribute('data-lng', city.coordinates.longitude);
-            listItem.setAttribute('data-name', city.location.name);
-            listItem.setAttribute('data-value', city.value);
+            listItem.setAttribute('data-name', city.location);
+            listItem.setAttribute('data-value', pm25.lastValue);
 
-            const colorClass = getAqiColorClass(city.value);
-            const cityName = city.location.country ? `${city.location.name}, ${city.location.country}` : city.location.name;
+            const colorClass = getAqiColorClass(pm25.lastValue);
+            // FIX: Use 'location' for station name and 'city' for city name
+            const cityName = city.city ? `${city.location}, ${city.city}` : city.location;
 
             listItem.innerHTML = `
                 <span class="city-name" title="${cityName}">${index + 1}. ${cityName}</span>
-                <span class="aqi-value ${colorClass}">${city.value.toFixed(1)}</span>
+                <span class="aqi-value ${colorClass}">${pm25.lastValue.toFixed(1)}</span>
             `;
             container.appendChild(listItem);
         });
