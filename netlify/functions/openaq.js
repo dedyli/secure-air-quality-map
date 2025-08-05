@@ -1,42 +1,41 @@
-// A simpler, more robust proxy for Netlify Functions.
-const fetch = require('node-fetch');
+// netlify/functions/openaq.js
+const express = require('express');
+const serverless = require('serverless-http');
 
-exports.handler = async function (event) {
-  // Securely get the API key from Netlify's environment variables
-  const API_KEY = process.env.OPENAQ_API_KEY;
-  if (!API_KEY) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: "OPENAQ_API_KEY is not configured." })
-    };
+const app = express();
+const router = express.Router();
+
+// CORS middleware
+router.use((req, res, next) => {
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET,OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  });
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
   }
-  
-  const API_ENDPOINT = 'https://api.openaq.org/v3';
+  next();
+});
 
-  // Reconstruct the URL safely
-  const path = event.path.replace('/.netlify/functions/openaq', '');
-  const queryString = new URLSearchParams(event.queryStringParameters).toString();
-  const url = `${API_ENDPOINT}${path}?${queryString}`;
+// Proxy all GET requests to OpenAQ V3
+router.get('/*', async (req, res) => {
+  const endpointPath = req.params[0] || '';
+  const queryString = req._parsedUrl.search || '';
+  const targetUrl = `https://api.openaq.org/v3/${endpointPath}${queryString}`;
+  console.log(`Proxying request to: ${targetUrl}`);
 
   try {
-    const response = await fetch(url, {
-      headers: {
-        'Accept': 'application/json',
-        'X-API-Key': API_KEY
-      }
-    });
-
-    // Pass the response from OpenAQ directly back to the browser
-    const data = await response.text(); // Use .text() to handle all response types
-    return {
-      statusCode: response.status,
-      body: data,
-    };
-
-  } catch (error) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ error: 'Proxy Server Error', details: error.message }),
-    };
+    const response = await fetch(targetUrl);
+    const data = await response.json();
+    return res.json(data);
+  } catch (err) {
+    console.error('Error proxying to OpenAQ:', err);
+    return res.status(502).json({ error: 'Bad gateway' });
   }
-};
+});
+
+// Mount router at root so requests to /.netlify/functions/openaq/* hit the handler
+app.use('/', router);
+
+module.exports.handler = serverless(app);
