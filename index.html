@@ -529,83 +529,37 @@
             throw error;
         }
     }
-    
-    // Helper function to calculate distance between two coordinates
-    function calculateDistance(lat1, lng1, lat2, lng2) {
-        const R = 6371; // Earth's radius in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLng/2) * Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
-        return Math.round(distance * 10) / 10; // Round to 1 decimal place
-    } : 
-                                    'Unknown'
-                            };
-                        }
-                    }
-                }
-            }
-            
-            throw new Error('No PM2.5 data found near this location');
-            
-        } catch (error) {
-            console.error('Fallback search failed:', error);
-            throw error;
-        }
-    }
-    
-    // Helper function to calculate distance between two coordinates
-    function calculateDistance(lat1, lng1, lat2, lng2) {
-        const R = 6371; // Earth's radius in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLng/2) * Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
-        return Math.round(distance * 10) / 10; // Round to 1 decimal place
-    }
 
     async function fetchWeeklyTrendData() {
         console.log('Fetching weekly trend data...');
         
-        // For now, let's use the sample data since the measurements endpoint seems to have issues
-        // This provides a working chart while the API issues are resolved
+        // For now, use sample data since the historical measurements are complex in v3
+        // This provides a working chart while showing realistic air quality patterns
         const sampleData = {
             labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
             data: [28, 32, 25, 35, 38, 30, 26],
-            city: 'Global Average'
+            city: 'Global Sample'
         };
         
         try {
-            // Try to get some real recent data for trend simulation
-            const response = await fetch(`${backendProxyUrl}/latest?limit=50&parameter=pm25&order_by=lastUpdated`);
+            // Try to get some recent PM2.5 values to create a simulated trend
+            const response = await fetch(`${backendProxyUrl}/parameters/2/latest?limit=21`);
             
             if (response.ok) {
                 const data = await response.json();
                 
-                if (data.results && data.results.length > 0) {
+                if (data.results && data.results.length >= 7) {
                     // Use recent measurements to create a simulated weekly trend
-                    const recentValues = [];
-                    
-                    data.results.forEach(record => {
-                        if (record.measurements && record.measurements.length > 0) {
-                            const value = record.measurements[0].value;
-                            if (value && !isNaN(value) && value > 0 && value < 200) {
-                                recentValues.push(value);
-                            }
-                        }
-                    });
+                    const recentValues = data.results
+                        .filter(record => record.value && !isNaN(record.value) && record.value > 0 && record.value < 200)
+                        .map(record => record.value)
+                        .slice(0, 7);
                     
                     if (recentValues.length >= 7) {
-                        // Use the first 7 values as a week trend
+                        console.log('Using real data for trend:', recentValues);
                         return {
                             labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                            data: recentValues.slice(0, 7),
+                            data: recentValues,
                             city: 'Recent Global Data'
                         };
                     }
@@ -782,6 +736,19 @@
             case 'aqi-unhealthy': return '#FF0000';
             default: return '#FF0000';
         }
+    }
+
+    // Helper function to calculate distance between two coordinates
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        return Math.round(distance * 10) / 10; // Round to 1 decimal place
     }
 
     function getLocationName(latLng) {
