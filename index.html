@@ -18,27 +18,32 @@
             display: flex;
             align-items: center;
             padding: 10px 25px;
-            background-color: #F8F9FA;
+            background-color: #2a2a2e;
             position: relative;
-            border-bottom: 1px solid #DEE2E6;
+            border-bottom: 1px solid #444;
             height: 75px; 
             box-sizing: border-box;
         }
         #header-logo {
             height: 50px;
             margin-right: 20px;
+            background-color: #ffffff;
+            border-radius: 4px;
+            padding: 2px;
+            box-sizing: border-box;
         }
         .header-text {
             flex-grow: 1;
         }
         .header-text h1 {
             font-size: 22px;
-            margin-bottom: 4px;
-            color: #212529;
+            margin: 0 0 4px 0;
+            color: #EAEAEA;
         }
         .header-text p {
             font-size: 14px;
-            color: #495057;
+            color: #9ca5b3;
+            margin: 0;
         }
 
         .dashboard-container {
@@ -173,13 +178,12 @@
 </head>
 <body>
 <header class="dashboard-header">
-  <div class="logo-container">
-    <img src="Tsinghua_University_logo_and_wordmark_in_Chinese_and_English_characters.svg.png" alt="Tsinghua University Logo" class="logo">
-    <div class="title-group">
-      <h1>Global Air Quality Monitoring Dashboard</h1>
-      <p>Group 62 IEDE Research Topic: <em>AI-Driven Environmental Monitoring for a Green Economy</em></p>
+    <img src="Tsinghua_University_logo_and_wordmark_in_Chinese_and_English_characters.svg.png" alt="Tsinghua University Logo" id="header-logo">
+    <div class="header-text">
+        <h1>Global Air Quality Monitoring Dashboard</h1>
+        <p>Group 62 IEDE Research Topic: <em>AI-Driven Environmental Monitoring for a Green Economy</em></p>
     </div>
-  </div>
+    <button id="sidebar-toggle-btn">&#9776;</button>
 </header>
 
     <div class="dashboard-container">
