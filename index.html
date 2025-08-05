@@ -189,24 +189,24 @@
             </div>
             <div id="map"></div>
             <div id="legend-map">
-                <h4>PM2.5 Legend (µg/m³)</h4>
-                <div><span style="background-color: #00E400;"></span> 0-12: Good</div>
-                <div><span style="background-color: #FFFF00;"></span> 13-35: Moderate</div>
-                <div><span style="background-color: #FF7E00;"></span> 36-55: Unhealthy for Sensitive</div>
-                <div><span style="background-color: #FF0000;"></span> 56+: Unhealthy</div>
+                <h4>Air Quality Index</h4>
+                <div><span style="background-color: #00E400;"></span> 0-50: Good</div>
+                <div><span style="background-color: #FFFF00;"></span> 51-100: Moderate</div>
+                <div><span style="background-color: #FF7E00;"></span> 101-150: Unhealthy for Sensitive</div>
+                <div><span style="background-color: #FF0000;"></span> 151+: Unhealthy</div>
             </div>
         </main>
 
         <aside class="sidebar">
             <div class="widget">
-                <h3 class="widget-title">Top 5 Most Polluted Cities</h3>
+                <h3 class="widget-title">Major Cities Air Quality</h3>
                 <div id="top-cities-list" class="widget-content">
                     <div class="loader">Loading live city data...</div>
                 </div>
             </div>
 
             <div class="widget">
-                <h3 class="widget-title">Global PM2.5 Trend (Last 7 Days)</h3>
+                <h3 class="widget-title">Air Quality Trend (Last 7 Days)</h3>
                 <div id="global-trend-chart" class="widget-content">
                     <canvas id="aqiTrendChart"></canvas>
                 </div>
@@ -229,8 +229,23 @@
     // Replace with your actual Google Maps API key
     const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM";
     
-    const backendProxyUrl = "/.netlify/functions/openaq";
+    const googleAirQualityUrl = "/.netlify/functions/google-airquality";
+    const openaqProxyUrl = "/.netlify/functions/openaq";
     const newsProxyUrl = "/.netlify/functions/gnews";
+
+    // Major cities for sampling air quality data
+    const majorCities = [
+        { name: "Delhi", lat: 28.6139, lng: 77.2090 },
+        { name: "Beijing", lat: 39.9042, lng: 116.4074 },
+        { name: "Los Angeles", lat: 34.0522, lng: -118.2437 },
+        { name: "London", lat: 51.5074, lng: -0.1278 },
+        { name: "Mumbai", lat: 19.0760, lng: 72.8777 },
+        { name: "New York", lat: 40.7128, lng: -74.0060 },
+        { name: "Tokyo", lat: 35.6762, lng: 139.6503 },
+        { name: "Mexico City", lat: 19.4326, lng: -99.1332 },
+        { name: "São Paulo", lat: -23.5505, lng: -46.6333 },
+        { name: "Cairo", lat: 30.0444, lng: 31.2357 }
+    ];
 
     // --- Initialization ---
     function loadGoogleMapsScript() {
@@ -283,7 +298,7 @@
     };
 
     function initDashboard() {
-        fetchTopPollutedCities();
+        fetchMajorCitiesAirQuality();
         initCharts();
         getNewsData();
     }
@@ -292,7 +307,7 @@
         map.addListener('click', async (mapsMouseEvent) => {
             const latLng = mapsMouseEvent.latLng;
             infoWindow.setPosition(latLng);
-            infoWindow.setContent('<div class="info-window-content">Fetching location data...</div>');
+            infoWindow.setContent('<div class="info-window-content">Fetching air quality data...</div>');
             infoWindow.open(map);
             try {
                 const airQualityData = await getAirQualityDataFromCoords(latLng.lat(), latLng.lng());
@@ -319,258 +334,249 @@
         });
     }
 
-    // --- API Functions ---
-    async function fetchTopPollutedCities() {
+    // --- Google Air Quality API Functions ---
+    async function getAirQualityDataFromCoords(lat, lng) {
+        console.log(`Fetching air quality data for coordinates: ${lat}, ${lng}`);
+        
+        try {
+            // Try Google Air Quality API first
+            const response = await fetch(`${googleAirQualityUrl}/current`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    location: {
+                        latitude: lat,
+                        longitude: lng
+                    }
+                })
+            });
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('Google Air Quality data received:', data);
+
+                if (data.indexes && data.indexes.length > 0) {
+                    const universalAQI = data.indexes.find(index => index.code === 'uaqi') || data.indexes[0];
+                    const pm25Pollutant = data.pollutants?.find(p => p.code === 'pm25');
+                    
+                    return {
+                        aqi: universalAQI.aqi,
+                        category: universalAQI.category,
+                        dominantPollutant: universalAQI.dominantPollutant,
+                        pm25Value: pm25Pollutant?.concentration?.value || null,
+                        pm25Unit: pm25Pollutant?.concentration?.units || 'µg/m³',
+                        source: 'Google Air Quality API',
+                        datetime: data.dateTime,
+                        healthRecommendations: data.healthRecommendations
+                    };
+                }
+            }
+
+            // Fallback to OpenAQ if Google fails
+            console.log('Google API failed, trying OpenAQ as fallback...');
+            return await getAirQualityFromOpenAQ(lat, lng);
+
+        } catch (error) {
+            console.error('Error fetching from Google API:', error);
+            // Fallback to OpenAQ
+            try {
+                return await getAirQualityFromOpenAQ(lat, lng);
+            } catch (fallbackError) {
+                console.error('Both APIs failed:', fallbackError);
+                throw new Error('Unable to fetch air quality data for this location');
+            }
+        }
+    }
+
+    async function getAirQualityFromOpenAQ(lat, lng) {
+        // Simplified OpenAQ fallback
+        const locationParams = new URLSearchParams({
+            coordinates: `${lng},${lat}`,
+            radius: 50000,
+            parameters_id: 2,
+            limit: 1
+        });
+        
+        const response = await fetch(`${openaqProxyUrl}/locations?${locationParams.toString()}`);
+        
+        if (!response.ok) {
+            throw new Error('No monitoring stations found nearby');
+        }
+        
+        const locationData = await response.json();
+        
+        if (!locationData.results || locationData.results.length === 0) {
+            throw new Error('No monitoring stations found nearby');
+        }
+        
+        const nearestLocation = locationData.results[0];
+        const latestResponse = await fetch(`${openaqProxyUrl}/parameters/2/latest?locations_id=${nearestLocation.id}&limit=1`);
+        
+        if (!latestResponse.ok) {
+            throw new Error('No recent data available');
+        }
+        
+        const latestData = await latestResponse.json();
+        
+        if (latestData.results && latestData.results.length > 0) {
+            const result = latestData.results[0];
+            return {
+                aqi: Math.round(result.value * 2), // Rough AQI conversion
+                category: getStandardCategoryFromValue(result.value),
+                dominantPollutant: 'pm25',
+                pm25Value: result.value,
+                pm25Unit: 'µg/m³',
+                source: 'OpenAQ (Fallback)',
+                datetime: result.datetime?.local || result.datetime?.utc
+            };
+        }
+        
+        throw new Error('No data available');
+    }
+
+    async function fetchMajorCitiesAirQuality() {
         const container = document.getElementById('top-cities-list');
         container.innerHTML = '<div class="loader">Loading live city data...</div>';
         
         try {
-            console.log('Fetching top polluted cities...');
-            // OpenAQ v3: Get latest PM2.5 values (parameter ID 2)
-            const response = await fetch(`${backendProxyUrl}/parameters/2/latest?limit=500&sort=desc`);
-            
-            if (!response.ok) {
-                const errorText = await response.text();
-                console.error('API Error Response:', errorText);
-                throw new Error(`API Error: ${response.status} - ${response.statusText}`);
-            }
-
-            const data = await response.json();
-            console.log('API Response received:', data);
-
-            if (!data.results || data.results.length === 0) {
-                throw new Error('No data returned from API');
-            }
-
-            // Process data to get unique cities with their highest PM2.5 values
-            const cityMap = new Map();
-            let processedCount = 0;
-            
-            data.results.forEach((record, index) => {
+            console.log('Fetching air quality for major cities...');
+            const cityPromises = majorCities.slice(0, 5).map(async city => {
                 try {
-                    // Extract city name from the location data
-                    let cityName = null;
-                    
-                    if (record.location?.city) {
-                        cityName = record.location.city;
-                    } else if (record.location?.name) {
-                        // Extract city from location name if possible
-                        const locationName = record.location.name;
-                        // Try to extract city-like names (basic heuristic)
-                        const parts = locationName.split(/[-,\s]+/);
-                        cityName = parts[0] || locationName;
-                    }
-                    
-                    if (!cityName || cityName === 'N/A' || cityName === 'Unknown' || cityName.length < 2) {
-                        return; // Skip this record
-                    }
-                    
-                    // Extract PM2.5 value
-                    const pm25Value = record.value;
-                    
-                    if (pm25Value !== null && pm25Value !== undefined && !isNaN(pm25Value) && pm25Value > 0 && pm25Value < 1000) {
-                        // Clean up city name
-                        cityName = cityName.trim();
-                        
-                        // Keep the highest value for each city
-                        if (!cityMap.has(cityName) || cityMap.get(cityName) < pm25Value) {
-                            cityMap.set(cityName, pm25Value);
-                        }
-                        processedCount++;
-                    }
-                    
-                    // Log the first few records to understand the structure
-                    if (index < 3) {
-                        console.log(`Sample record ${index}:`, record);
-                    }
-                } catch (recordError) {
-                    console.warn('Error processing record:', recordError, record);
+                    const data = await getAirQualityDataFromCoords(city.lat, city.lng);
+                    return {
+                        name: city.name,
+                        aqi: data.aqi,
+                        pm25: data.pm25Value,
+                        category: data.category,
+                        source: data.source
+                    };
+                } catch (error) {
+                    console.warn(`Failed to get data for ${city.name}:`, error);
+                    return null;
                 }
             });
 
-            console.log(`Processed ${processedCount} records, found ${cityMap.size} unique cities`);
+            const results = await Promise.all(cityPromises);
+            const validResults = results.filter(result => result !== null);
 
-            if (cityMap.size === 0) {
-                // If no cities found, show sample data
-                console.log('No cities found, showing sample data structure:', data.results.slice(0, 2));
-                container.innerHTML = `
-                    <div class="list-item">
-                        <span class="city-name">1. Delhi</span>
-                        <span class="aqi-value aqi-unhealthy">89.5 µg/m³</span>
-                    </div>
-                    <div class="list-item">
-                        <span class="city-name">2. Beijing</span>
-                        <span class="aqi-value aqi-unhealthy">76.2 µg/m³</span>
-                    </div>
-                    <div class="list-item">
-                        <span class="city-name">3. Mumbai</span>
-                        <span class="aqi-value aqi-sensitive">65.8 µg/m³</span>
-                    </div>
-                    <div class="list-item">
-                        <span class="city-name">4. Cairo</span>
-                        <span class="aqi-value aqi-sensitive">58.3 µg/m³</span>
-                    </div>
-                    <div class="list-item">
-                        <span class="city-name">5. Los Angeles</span>
-                        <span class="aqi-value aqi-sensitive">42.1 µg/m³</span>
-                    </div>
-                `;
-                return;
+            if (validResults.length === 0) {
+                throw new Error('No city data available');
             }
 
-            // Convert to array and sort
-            const citiesArray = Array.from(cityMap.entries())
-                .map(([city, pm25]) => ({ city, pm25 }))
-                .sort((a, b) => b.pm25 - a.pm25)
-                .slice(0, 5);
+            // Sort by AQI (highest first)
+            validResults.sort((a, b) => b.aqi - a.aqi);
 
             // Display results
             container.innerHTML = '';
-            citiesArray.forEach((item, index) => {
+            validResults.forEach((city, index) => {
                 const listItem = document.createElement('div');
                 listItem.className = 'list-item';
                 listItem.innerHTML = `
-                    <span class="city-name">${index + 1}. ${item.city}</span>
-                    <span class="aqi-value ${getAqiColorClass(item.pm25)}">${item.pm25.toFixed(1)} µg/m³</span>
+                    <span class="city-name">${index + 1}. ${city.name}</span>
+                    <span class="aqi-value ${getAqiColorClass(city.aqi)}">AQI ${city.aqi}</span>
                 `;
                 container.appendChild(listItem);
             });
 
         } catch (error) {
-            console.error('Error loading top 5 cities:', error);
-            // Show sample data instead of error
+            console.error('Error loading city data:', error);
+            // Show sample data
             container.innerHTML = `
                 <div class="list-item">
                     <span class="city-name">1. Delhi</span>
-                    <span class="aqi-value aqi-unhealthy">89.5 µg/m³</span>
+                    <span class="aqi-value aqi-unhealthy">AQI 180</span>
                 </div>
                 <div class="list-item">
                     <span class="city-name">2. Beijing</span>
-                    <span class="aqi-value aqi-unhealthy">76.2 µg/m³</span>
+                    <span class="aqi-value aqi-unhealthy">AQI 165</span>
                 </div>
                 <div class="list-item">
                     <span class="city-name">3. Mumbai</span>
-                    <span class="aqi-value aqi-sensitive">65.8 µg/m³</span>
+                    <span class="aqi-value aqi-sensitive">AQI 125</span>
                 </div>
                 <div class="list-item">
                     <span class="city-name">4. Cairo</span>
-                    <span class="aqi-value aqi-sensitive">58.3 µg/m³</span>
+                    <span class="aqi-value aqi-sensitive">AQI 110</span>
                 </div>
                 <div class="list-item">
                     <span class="city-name">5. Los Angeles</span>
-                    <span class="aqi-value aqi-sensitive">42.1 µg/m³</span>
+                    <span class="aqi-value aqi-moderate">AQI 85</span>
                 </div>
             `;
         }
     }
 
-    async function getAirQualityDataFromCoords(lat, lng) {
-        console.log(`Fetching air quality data for coordinates: ${lat}, ${lng}`);
+    async function fetchTrendData() {
+        console.log('Fetching trend data...');
         
         try {
-            // OpenAQ v3 API: Find locations near coordinates for PM2.5 (parameter ID 2)
-            const locationParams = new URLSearchParams({
-                coordinates: `${lng},${lat}`, // Note: lng,lat format for OpenAQ v3
-                radius: 50000, // 50km radius
-                parameters_id: 2, // PM2.5 parameter ID
-                limit: 10
+            // Use Delhi as example city for trend
+            const delhiCoords = { lat: 28.6139, lng: 77.2090 };
+            
+            const response = await fetch(`${googleAirQualityUrl}/history`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    location: {
+                        latitude: delhiCoords.lat,
+                        longitude: delhiCoords.lng
+                    }
+                })
             });
-            
-            const locationUrl = `${backendProxyUrl}/locations?${locationParams.toString()}`;
-            console.log('Fetching locations from:', locationUrl);
-            
-            const locationResponse = await fetch(locationUrl);
-            
-            if (!locationResponse.ok) {
-                console.error('Location API failed:', locationResponse.status);
-                throw new Error(`Location search failed: ${locationResponse.status}`);
-            }
-            
-            const locationData = await locationResponse.json();
-            console.log('Location data received:', locationData);
-            
-            if (!locationData.results || locationData.results.length === 0) {
-                throw new Error('No PM2.5 monitoring stations found within 50km of this location');
-            }
-            
-            // Get the latest values for PM2.5 from the nearest location
-            const nearestLocation = locationData.results[0];
-            console.log('Using nearest location:', nearestLocation);
-            
-            // OpenAQ v3: Get latest PM2.5 values using parameter endpoint
-            const latestUrl = `${backendProxyUrl}/parameters/2/latest?locations_id=${nearestLocation.id}&limit=1`;
-            console.log('Fetching latest data from:', latestUrl);
-            
-            const latestResponse = await fetch(latestUrl);
-            
-            if (!latestResponse.ok) {
-                console.error('Latest data API failed:', latestResponse.status);
-                throw new Error(`Latest data fetch failed: ${latestResponse.status}`);
-            }
-            
-            const latestData = await latestResponse.json();
-            console.log('Latest data received:', latestData);
-            
-            if (latestData.results && latestData.results.length > 0) {
-                const result = latestData.results[0];
-                return {
-                    value: result.value,
-                    location: nearestLocation.name || 'Unknown Station',
-                    coordinates: nearestLocation.coordinates,
-                    distance: calculateDistance(lat, lng, nearestLocation.coordinates.latitude, nearestLocation.coordinates.longitude),
-                    datetime: result.datetime?.local || result.datetime?.utc || 'Unknown time'
-                };
-            }
-            
-            throw new Error('No recent PM2.5 data available from nearby stations');
-            
-        } catch (error) {
-            console.error('Error in getAirQualityDataFromCoords:', error);
-            throw error;
-        }
-    }
 
-    async function fetchWeeklyTrendData() {
-        console.log('Fetching weekly trend data...');
-        
-        // For now, use sample data since the historical measurements are complex in v3
-        // This provides a working chart while showing realistic air quality patterns
-        const sampleData = {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            data: [28, 32, 25, 35, 38, 30, 26],
-            city: 'Global Sample'
-        };
-        
-        try {
-            // Try to get some recent PM2.5 values to create a simulated trend
-            const response = await fetch(`${backendProxyUrl}/parameters/2/latest?limit=21`);
-            
             if (response.ok) {
                 const data = await response.json();
-                
-                if (data.results && data.results.length >= 7) {
-                    // Use recent measurements to create a simulated weekly trend
-                    const recentValues = data.results
-                        .filter(record => record.value && !isNaN(record.value) && record.value > 0 && record.value < 200)
-                        .map(record => record.value)
-                        .slice(0, 7);
+                console.log('Historical data received:', data);
+
+                if (data.hoursInfo && data.hoursInfo.length > 0) {
+                    // Group by day and calculate averages
+                    const dailyData = {};
                     
-                    if (recentValues.length >= 7) {
-                        console.log('Using real data for trend:', recentValues);
+                    data.hoursInfo.forEach(hour => {
+                        const date = new Date(hour.dateTime).toDateString();
+                        const universalAQI = hour.indexes?.find(index => index.code === 'uaqi');
+                        
+                        if (universalAQI) {
+                            if (!dailyData[date]) {
+                                dailyData[date] = { total: 0, count: 0 };
+                            }
+                            dailyData[date].total += universalAQI.aqi;
+                            dailyData[date].count++;
+                        }
+                    });
+
+                    const sortedDays = Object.keys(dailyData).sort();
+                    const labels = sortedDays.slice(-7).map(day => {
+                        const date = new Date(day);
+                        return date.toLocaleDateString('en-US', { weekday: 'short' });
+                    });
+                    const values = sortedDays.slice(-7).map(day => 
+                        Math.round(dailyData[day].total / dailyData[day].count)
+                    );
+
+                    if (values.length >= 3) {
                         return {
-                            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-                            data: recentValues,
-                            city: 'Recent Global Data'
+                            labels,
+                            data: values,
+                            city: 'Delhi (Google API)'
                         };
                     }
                 }
             }
         } catch (error) {
-            console.log('Could not fetch real trend data, using sample:', error);
+            console.log('Could not fetch historical data:', error);
         }
         
-        console.log('Using sample trend data');
-        return sampleData;
+        // Fallback sample data
+        return {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            data: [85, 92, 78, 105, 118, 95, 82],
+            city: 'Sample Data'
+        };
     }
     
     async function getNewsData() {
@@ -580,31 +586,7 @@
             const response = await fetch(newsProxyUrl);
             
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('News API Error Response:', errorText);
-                
-                // Show fallback content instead of just error
-                newsListContainer.innerHTML = `
-                    <div class="news-item">
-                        <a href="https://www.who.int/news-room/fact-sheets/detail/ambient-(outdoor)-air-quality-and-health" target="_blank" rel="noopener noreferrer">
-                            WHO: Ambient (outdoor) air quality and health
-                        </a>
-                        <span class="news-source">World Health Organization</span>
-                    </div>
-                    <div class="news-item">
-                        <a href="https://www.epa.gov/pm-pollution" target="_blank" rel="noopener noreferrer">
-                            Particulate Matter (PM) Pollution
-                        </a>
-                        <span class="news-source">US EPA</span>
-                    </div>
-                    <div class="news-item">
-                        <a href="https://openaq.org/" target="_blank" rel="noopener noreferrer">
-                            OpenAQ - Open Air Quality Data
-                        </a>
-                        <span class="news-source">OpenAQ Platform</span>
-                    </div>
-                `;
-                return;
+                throw new Error('News API failed');
             }
             
             const data = await response.json();
@@ -617,7 +599,7 @@
             }
         } catch (error) {
             console.error("Could not fetch news:", error);
-            // Show fallback content instead of just error message
+            // Show fallback content
             newsListContainer.innerHTML = `
                 <div class="news-item">
                     <a href="https://www.who.int/news-room/fact-sheets/detail/ambient-(outdoor)-air-quality-and-health" target="_blank" rel="noopener noreferrer">
@@ -633,23 +615,25 @@
                 </div>
                 <div class="news-item">
                     <a href="https://openaq.org/" target="_blank" rel="noopener noreferrer">
-                        OpenAQ - Open Air Quality Data
+                        OpenAQ - Open Air Quality Data Platform
                     </a>
                     <span class="news-source">OpenAQ Platform</span>
+                </div>
+                <div class="news-item">
+                    <a href="https://developers.google.com/maps/documentation/air-quality" target="_blank" rel="noopener noreferrer">
+                        Google Air Quality API Documentation
+                    </a>
+                    <span class="news-source">Google Developers</span>
                 </div>
             `;
         }
     }
 
-    // --- UI Population and Utility Functions ---
+    // --- UI Functions ---
     async function initCharts() {
         const chartContainer = document.getElementById('global-trend-chart');
         try {
-            const { labels, data, city } = await fetchWeeklyTrendData();
-            if (data.length === 0) {
-                chartContainer.innerHTML = `<div class="error-message">Trend data temporarily unavailable.</div>`;
-                return;
-            }
+            const { labels, data, city } = await fetchTrendData();
             
             const ctx = document.getElementById('aqiTrendChart').getContext('2d'); 
             new Chart(ctx, { 
@@ -657,7 +641,7 @@
                 data: { 
                     labels: labels, 
                     datasets: [{ 
-                        label: `Average PM2.5 (${city})`, 
+                        label: `Air Quality Index (${city})`, 
                         data: data, 
                         borderColor: '#4C8BF5', 
                         backgroundColor: 'rgba(76, 139, 245, 0.2)', 
@@ -670,7 +654,8 @@
                     maintainAspectRatio: false, 
                     scales: { 
                         y: { 
-                            beginAtZero: false, 
+                            beginAtZero: true, 
+                            max: 200,
                             ticks: { color: '#EAEAEA' }, 
                             grid: { color: 'rgba(234, 234, 234, 0.1)' } 
                         }, 
@@ -700,34 +685,43 @@
 
     function displayAirQualityInfo(data, locationName, position) { 
         infoWindow.setPosition(position); 
-        if (!data || data.value === undefined) { 
-            infoWindow.setContent(`<div class="info-window-content"><strong>${locationName}</strong><br>No air quality data available for this location.<br><small>Try clicking on a major city or populated area.</small></div>`); 
+        
+        if (!data || (!data.aqi && !data.pm25Value)) { 
+            infoWindow.setContent(`
+                <div class="info-window-content">
+                    <strong>${locationName}</strong><br>
+                    No air quality data available for this location.<br>
+                    <small>Try clicking on a major city area.</small>
+                </div>
+            `); 
             infoWindow.open(map); 
             return; 
         } 
         
-        const { value, location, distance } = data; 
-        const standardCategory = getStandardCategoryFromValue(value); 
-        const colorClass = getAqiColorClass(value);
+        const { aqi, category, pm25Value, pm25Unit, source, dominantPollutant, healthRecommendations } = data;
+        const colorClass = getAqiColorClass(aqi);
         
-        let distanceText = '';
-        if (distance && distance !== 'Unknown') {
-            distanceText = `<p><strong>Distance to Station:</strong> ${distance} km</p>`;
-        }
-        
-        infoWindow.setContent(`
+        let contentHtml = `
             <div class="info-window-content">
                 <h3>${locationName}</h3>
-                <p><strong>PM2.5:</strong> <span style="color: ${getColorFromClass(colorClass)}">${value.toFixed(1)} µg/m³</span></p>
-                <p><strong>Air Quality:</strong> ${standardCategory}</p>
-                <p><strong>Monitoring Station:</strong> ${location}</p>
-                ${distanceText}
-            </div>
-        `); 
+                <p><strong>AQI:</strong> <span style="color: ${getColorFromClass(colorClass)}">${aqi}</span></p>
+                <p><strong>Category:</strong> ${category}</p>
+        `;
+        
+        if (pm25Value) {
+            contentHtml += `<p><strong>PM2.5:</strong> ${pm25Value.toFixed(1)} ${pm25Unit}</p>`;
+        }
+        
+        if (dominantPollutant) {
+            contentHtml += `<p><strong>Main Pollutant:</strong> ${dominantPollutant.toUpperCase()}</p>`;
+        }
+        
+        contentHtml += `<p><small>Source: ${source}</small></p></div>`;
+        
+        infoWindow.setContent(contentHtml); 
         infoWindow.open(map); 
     }
     
-    // Helper function to get color from class
     function getColorFromClass(colorClass) {
         switch(colorClass) {
             case 'aqi-good': return '#00E400';
@@ -736,19 +730,6 @@
             case 'aqi-unhealthy': return '#FF0000';
             default: return '#FF0000';
         }
-    }
-
-    // Helper function to calculate distance between two coordinates
-    function calculateDistance(lat1, lng1, lat2, lng2) {
-        const R = 6371; // Earth's radius in km
-        const dLat = (lat2 - lat1) * Math.PI / 180;
-        const dLng = (lng2 - lng1) * Math.PI / 180;
-        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-                Math.sin(dLng/2) * Math.sin(dLng/2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-        const distance = R * c;
-        return Math.round(distance * 10) / 10; // Round to 1 decimal place
     }
 
     function getLocationName(latLng) {
@@ -789,19 +770,19 @@
         });
     }
     
-    function getAqiColorClass(value) {
-        if (value <= 12) return 'aqi-good';
-        if (value <= 35.4) return 'aqi-moderate';
-        if (value <= 55.4) return 'aqi-sensitive';
+    function getAqiColorClass(aqi) {
+        if (aqi <= 50) return 'aqi-good';
+        if (aqi <= 100) return 'aqi-moderate';
+        if (aqi <= 150) return 'aqi-sensitive';
         return 'aqi-unhealthy';
     }
 
-    function getStandardCategoryFromValue(value) {
-        if (value <= 12) return 'Good';
-        if (value <= 35.4) return 'Moderate';
-        if (value <= 55.4) return 'Unhealthy for Sensitive Groups';
-        if (value <= 150.4) return 'Unhealthy';
-        if (value <= 250.4) return 'Very Unhealthy';
+    function getStandardCategoryFromValue(pm25Value) {
+        if (pm25Value <= 12) return 'Good';
+        if (pm25Value <= 35.4) return 'Moderate';
+        if (pm25Value <= 55.4) return 'Unhealthy for Sensitive Groups';
+        if (pm25Value <= 150.4) return 'Unhealthy';
+        if (pm25Value <= 250.4) return 'Very Unhealthy';
         return 'Hazardous';
     }
 
