@@ -1,20 +1,11 @@
-// File: netlify/functions/gnews.js
 const fetch = require('node-fetch');
 
-// This handler will run when you call /.netlify/functions/gnews
-exports.handler = async function (event, context) {
-  // Get your secret API key from Netlify's environment variables
-  const NEWS_API_KEY = process.env.GNEWS_API_KEY;
+// FOR TROUBLESHOOTING: API key is placed directly in the code.
+const API_KEY = 'eb6e1360b30c6a7f876690a5ef785d0f';
 
-  if (!NEWS_API_KEY) {
-    return {
-      statusCode: 500,
-      body: JSON.stringify({ message: "News API key is not configured." }),
-    };
-  }
-
+exports.handler = async function (event) {
   const query = encodeURIComponent('"air pollution" OR "air quality"');
-  const url = `https://gnews.io/api/v4/search?q=${query}&lang=en&max=10&apikey=${NEWS_API_KEY}`;
+  const url = `https://gnews.io/api/v4/search?q=${query}&lang=en&max=10&apikey=${API_KEY}`;
 
   try {
     const response = await fetch(url);
@@ -26,7 +17,7 @@ exports.handler = async function (event, context) {
   } catch (error) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ message: 'Failed to fetch news', details: error.message }),
+      body: JSON.stringify({ error: 'Failed to fetch news', details: error.message }),
     };
   }
 };
