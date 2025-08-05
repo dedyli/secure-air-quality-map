@@ -1,3 +1,6 @@
+
+
+
 // Fixed serverless backend proxy for Netlify to bypass CORS with the OpenAQ API.
 const express = require('express');
 const serverless = require('serverless-http');
@@ -27,10 +30,26 @@ app.get('*', async (req, res) => {
             apiPath = apiPath.split('?')[0];
         }
         
-        // Extract just the endpoint name (latest, measurements, etc.)
-        // The path will be something like /.netlify/functions/openaq/latest
-        const pathParts = apiPath.split('/');
-        const endpoint = pathParts[pathParts.length - 1] || 'latest';
+        // Remove the Netlify function prefix to get the OpenAQ endpoint
+        // Path will be like: /.netlify/functions/openaq/parameters/2/latest
+        // We want: parameters/2/latest
+        const functionPrefix = '/.netlify/functions/openaq/';
+        let endpoint = '';
+        
+        if (apiPath.startsWith(functionPrefix)) {
+            endpoint = apiPath.substring(functionPrefix.length);
+        } else {
+            // Fallback: extract everything after the last 'openaq/'
+            const openaqIndex = apiPath.lastIndexOf('openaq/');
+            if (openaqIndex !== -1) {
+                endpoint = apiPath.substring(openaqIndex + 7); // 7 = length of 'openaq/'
+            }
+        }
+        
+        // Default to 'locations' if no endpoint
+        if (!endpoint) {
+            endpoint = 'locations';
+        }
         
         console.log(`[Function Log] Extracted endpoint: ${endpoint}`);
         
