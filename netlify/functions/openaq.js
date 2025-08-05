@@ -13,25 +13,31 @@ app.use(express.json());
 const OPENAQ_API_URL = 'https://api.openaq.org/v3/';
 const OPENAQ_API_KEY = '9f408ed0e450f2c243ab27af6c475b1b8a4f0b6d776a82b55781cb0ab5190a89';
 
-// Create a router for handling API routes
-const router = express.Router();
-
-// Handle all GET requests to any path under the function
-router.get('*', async (req, res) => {
+// Handle all requests - Netlify functions receive the full path
+app.get('*', async (req, res) => {
     try {
-        // Extract the path after the function name
-        // req.path will be something like '/latest' or '/measurements'
-        const apiPath = req.path.startsWith('/') ? req.path.substring(1) : req.path;
+        // Extract the API endpoint from the request URL
+        let apiPath = req.url;
         
-        // If no path, default to 'latest'
-        const finalPath = apiPath || 'latest';
+        console.log(`[Function Log] Full request URL: ${req.url}`);
+        console.log(`[Function Log] Request path: ${req.path}`);
+        
+        // Remove query string to get just the path
+        if (apiPath.includes('?')) {
+            apiPath = apiPath.split('?')[0];
+        }
+        
+        // Extract just the endpoint name (latest, measurements, etc.)
+        // The path will be something like /.netlify/functions/openaq/latest
+        const pathParts = apiPath.split('/');
+        const endpoint = pathParts[pathParts.length - 1] || 'latest';
+        
+        console.log(`[Function Log] Extracted endpoint: ${endpoint}`);
         
         // Build the full OpenAQ API URL
         const searchParams = new URLSearchParams(req.query);
-        const fullUrl = `${OPENAQ_API_URL}${finalPath}?${searchParams.toString()}`;
+        const fullUrl = `${OPENAQ_API_URL}${endpoint}?${searchParams.toString()}`;
 
-        console.log(`[Function Log] Incoming request path: ${req.path}`);
-        console.log(`[Function Log] Extracted API path: ${finalPath}`);
         console.log(`[Function Log] Full OpenAQ URL: ${fullUrl}`);
 
         const response = await fetch(fullUrl, {
@@ -78,15 +84,12 @@ router.get('*', async (req, res) => {
 });
 
 // Handle preflight OPTIONS requests
-router.options('*', (req, res) => {
+app.options('*', (req, res) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
     res.sendStatus(200);
 });
-
-// Mount the router
-app.use('/', router);
 
 // Export the handler for Netlify
 module.exports.handler = serverless(app);
