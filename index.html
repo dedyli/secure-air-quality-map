@@ -64,7 +64,7 @@
             display: flex;
             align-items: center;
             padding: 10px 25px;
-            background-color: #2a2a2e;
+            background-image: linear-gradient(to right, #432d57, #2a2a2e);
             position: relative;
             border-bottom: 1px solid #444;
             height: 75px; 
@@ -73,7 +73,7 @@
         #header-logo {
             height: 50px;
             margin-right: 20px;
-            box-sizing: border-box; /* <-- REMOVED STYLES FOR WHITE BACKGROUND */
+            box-sizing: border-box;
         }
         .header-text { flex-grow: 1; }
         .header-text h1 { font-size: 22px; margin: 0 0 4px 0; color: #EAEAEA; }
@@ -124,15 +124,15 @@
         .dashboard-container.sidebar-collapsed .sidebar {
             margin-right: -391px;
         }
-        /* --- NEW STYLES FOR MAP LEGEND --- */
-        .map-legend {
+        .map-legend, .map-controls {
             background: rgba(42, 42, 46, 0.9);
             padding: 10px 15px;
-            margin: 15px !important; /* Use !important to override Google Maps default margins */
+            margin: 15px !important;
             border-radius: 8px;
             border: 1px solid var(--border-color);
             box-shadow: 0 2px 6px rgba(0,0,0,0.3);
             font-size: 12px;
+            color: var(--text-primary);
         }
         .map-legend h4 {
             margin: 0 0 10px 0;
@@ -153,6 +153,15 @@
             height: 18px;
             margin-right: 8px;
             border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        .map-controls label {
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .map-controls input {
+            margin-right: 8px;
         }
     </style>
 </head>
@@ -203,7 +212,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script>
     // --- Configuration ---
-    let map, infoWindow, geocoder;
+    let map, infoWindow, geocoder, heatmap; // Added heatmap global variable
     
     // Your Google Maps API key
     const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM";
@@ -274,7 +283,8 @@
 
         initDashboard();
         setupEventListeners();
-        createMapLegend(); // <-- ADDED LEGEND TO MAP
+        createMapLegend(); 
+        initHeatmapLayer(); // <-- INITIALIZE HEATMAP
     };
 
     function initDashboard() {
@@ -316,10 +326,7 @@
 
     // --- Google Air Quality API Functions ---
     async function getAirQualityDataFromCoords(lat, lng) {
-        console.log(`Fetching air quality data for coordinates: ${lat}, ${lng}`);
-        
         try {
-            // **FIXED**: Call the Google Air Quality API directly
             const response = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleMapsApiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -330,12 +337,9 @@
 
             if (response.ok) {
                 const data = await response.json();
-                console.log('Google Air Quality data received:', data);
-
                 if (data.indexes && data.indexes.length > 0) {
                     const universalAQI = data.indexes.find(index => index.code === 'uaqi') || data.indexes[0];
                     const pm25Pollutant = data.pollutants?.find(p => p.code === 'pm25');
-                    
                     return {
                         aqi: universalAQI.aqi,
                         category: universalAQI.category,
@@ -348,48 +352,31 @@
                     };
                 }
             }
-
-            // Fallback to OpenAQ if Google fails
-            console.log('Google API failed, trying OpenAQ as fallback...');
             return await getAirQualityFromOpenAQ(lat, lng);
-
         } catch (error) {
-            console.error('Error fetching from Google API:', error);
-            // Fallback to OpenAQ
             try {
                 return await getAirQualityFromOpenAQ(lat, lng);
             } catch (fallbackError) {
-                console.error('Both APIs failed:', fallbackError);
                 throw new Error('Unable to fetch air quality data for this location');
             }
         }
     }
 
     async function getAirQualityFromOpenAQ(lat, lng) {
-        // NOTE: This fallback will likely fail as it still uses a proxy.
-        // It's left here to maintain the original structure.
-        const locationParams = new URLSearchParams({
-            coordinates: `${lng},${lat}`,
-            radius: 50000,
-            parameters_id: 2,
-            limit: 1
-        });
-        
+        const locationParams = new URLSearchParams({ coordinates: `${lng},${lat}`, radius: 50000, parameters_id: 2, limit: 1 });
         const response = await fetch(`${openaqProxyUrl}/locations?${locationParams.toString()}`);
-        
         if (!response.ok) { throw new Error('No monitoring stations found nearby'); }
         const locationData = await response.json();
         if (!locationData.results || locationData.results.length === 0) { throw new Error('No monitoring stations found nearby');}
         
         const nearestLocation = locationData.results[0];
         const latestResponse = await fetch(`${openaqProxyUrl}/parameters/2/latest?locations_id=${nearestLocation.id}&limit=1`);
-        
         if (!latestResponse.ok) { throw new Error('No recent data available'); }
         const latestData = await latestResponse.json();
         if (latestData.results && latestData.results.length > 0) {
             const result = latestData.results[0];
             return {
-                aqi: Math.round(result.value * 2), // Rough AQI conversion
+                aqi: Math.round(result.value * 2),
                 category: getStandardCategoryFromValue(result.value),
                 dominantPollutant: 'pm25',
                 pm25Value: result.value,
@@ -398,7 +385,6 @@
                 datetime: result.datetime?.local || result.datetime?.utc
             };
         }
-        
         throw new Error('No data available');
     }
 
@@ -407,7 +393,6 @@
         container.innerHTML = '<div class="loader">Loading live city data...</div>';
         
         try {
-            console.log('Fetching air quality for major cities...');
             const cityPromises = majorCities.slice(0, 5).map(async city => {
                 try {
                     const data = await getAirQualityDataFromCoords(city.lat, city.lng);
@@ -418,10 +403,7 @@
                         category: data.category,
                         source: data.source
                     };
-                } catch (error) {
-                    console.warn(`Failed to get data for ${city.name}:`, error);
-                    return null;
-                }
+                } catch (error) { return null; }
             });
 
             const results = await Promise.all(cityPromises);
@@ -454,25 +436,16 @@
     }
 
     async function fetchTrendData() {
-        console.log('Fetching trend data...');
         try {
             const delhiCoords = { lat: 28.6139, lng: 77.2090 };
-            
-            // **FIXED**: Call the Google History API directly
             const response = await fetch(`https://airquality.googleapis.com/v1/history:lookup?key=${googleMapsApiKey}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    location: { latitude: delhiCoords.lat, longitude: delhiCoords.lng },
-                    pageSize: 7, // Request 7 days
-                    period: "P7D" // ISO 8601 duration for 7 days
-                })
+                body: JSON.stringify({ location: { latitude: delhiCoords.lat, longitude: delhiCoords.lng }, pageSize: 7, period: "P7D" })
             });
 
             if (response.ok) {
                 const data = await response.json();
-                console.log('Historical data received:', data);
-
                 if (data.hoursInfo && data.hoursInfo.length > 0) {
                     const dailyData = {};
                     data.hoursInfo.forEach(hour => {
@@ -496,19 +469,13 @@
             }
         } catch (error) { console.log('Could not fetch historical data:', error); }
         
-        // Fallback sample data
-        return {
-            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
-            data: [85, 92, 78, 105, 118, 95, 82],
-            city: 'Sample Data'
-        };
+        return { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], data: [85, 92, 78, 105, 118, 95, 82], city: 'Sample Data' };
     }
     
     async function getNewsData() {
         const newsListContainer = document.getElementById('news-list');
         try {
-            console.log('Fetching news data...');
-            const response = await fetch(newsProxyUrl); // NOTE: This will still fail
+            const response = await fetch(newsProxyUrl); 
             if (!response.ok) { throw new Error('News API failed'); }
             const data = await response.json();
             if (data.articles && data.articles.length > 0) { populateNewsList(data.articles); } 
@@ -641,7 +608,6 @@
         return Math.floor(seconds) + " seconds ago";
     }
 
-    // --- NEW FUNCTION TO CREATE MAP LEGEND ---
     function createMapLegend() {
         const legend = document.createElement('div');
         legend.className = 'map-legend';
@@ -667,6 +633,68 @@
         map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(legend);
     }
     
+    // --- NEW HEATMAP FUNCTIONS ---
+    async function initHeatmapLayer() {
+        console.log("Fetching data for heatmap...");
+        const heatmapData = [];
+
+        const cityPromises = majorCities.map(async city => {
+            try {
+                const data = await getAirQualityDataFromCoords(city.lat, city.lng);
+                if (data && data.aqi) {
+                    return {
+                        location: new google.maps.LatLng(city.lat, city.lng),
+                        weight: data.aqi
+                    };
+                }
+            } catch (error) {
+                console.warn(`Could not get heatmap data for ${city.name}`);
+            }
+            return null;
+        });
+
+        const results = await Promise.all(cityPromises);
+        const validPoints = results.filter(p => p !== null);
+
+        heatmap = new google.maps.visualization.HeatmapLayer({
+            data: validPoints,
+            map: null // Initially hidden
+        });
+        
+        // Configure heatmap appearance
+        heatmap.set('radius', 50);
+        heatmap.set('opacity', 0.7);
+        const gradient = [
+            'rgba(0, 255, 255, 0)',
+            'rgba(0, 255, 255, 1)',
+            'rgba(0, 255, 0, 1)',
+            'rgba(255, 255, 0, 1)',
+            'rgba(255, 0, 0, 1)'
+        ];
+        heatmap.set('gradient', gradient);
+
+        createHeatmapToggle();
+    }
+
+    function createHeatmapToggle() {
+        const controlDiv = document.createElement('div');
+        controlDiv.className = 'map-controls';
+        
+        controlDiv.innerHTML = `
+            <label>
+                <input type="checkbox" id="toggle-heatmap-checkbox">
+                Show Heatmap
+            </label>
+        `;
+
+        map.controls[google.maps.ControlPosition.LEFT_BOTTOM].push(controlDiv);
+
+        const checkbox = controlDiv.querySelector('#toggle-heatmap-checkbox');
+        checkbox.addEventListener('change', () => {
+            heatmap.setMap(checkbox.checked ? map : null);
+        });
+    }
+
     // --- Initial Load ---
     document.addEventListener('DOMContentLoaded', loadGoogleMapsScript);
     </script>
