@@ -327,7 +327,7 @@
         const url = `${openAqApiUrl}latest?limit=100&page=1&offset=0&sort=desc&parameter=pm25&order_by=value`;
 
         try {
-            const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', 'X-API-Key': openAqApiKey } });
+            const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', } });
             if (!response.ok) throw new Error(`OpenAQ API Error (${response.status}): ${response.statusText}`);
             const data = await response.json();
 
@@ -345,7 +345,7 @@
 
     async function getAirQualityDataFromCoords(lat, lng) {
         const url = `${openAqApiUrl}latest?coordinates=${lat},${lng}&radius=10000&parameter=pm25&sort=desc&order_by=distance`;
-        const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', 'X-API-Key': openAqApiKey } });
+        const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', } });
 
         if (!response.ok) throw new Error('Failed to fetch Air Quality data from OpenAQ.');
         
@@ -367,7 +367,7 @@
         const url = `${openAqApiUrl}averages?spatial=country&country=US&parameter=pm25&date_from=${formatDate(dateFrom)}&date_to=${formatDate(dateTo)}&limit=7&sort=asc&order_by=day`;
 
         try {
-            const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', 'X-API-Key': openAqApiKey } });
+            const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', } });
             if (!response.ok) throw new Error(`OpenAQ API Error (${response.status}): ${response.statusText}`);
             const data = await response.json();
             
