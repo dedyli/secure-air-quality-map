@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Air Quality Monitoring Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { background-color: #1A1A1A; color: #EAEAEA; font-family: 'Inter', sans-serif; margin: 0; }
+        .dashboard-header {
+            display: flex; align-items: center; padding: 10px 25px;
+            background-color: #F8F9FA; border-bottom: 1px solid #DEE2E6; height: 75px;
+        }
+        #header-logo { height: 50px; margin-right: 20px; }
+        .header-text h1 { font-size: 22px; color: #212529; margin: 0 0 4px 0;}
+        .header-text p { font-size: 14px; color: #495057; margin: 0; }
+        .dashboard-container { display: flex; gap: 20px; padding: 24px; }
+        .widget { background-color: #2a2a2e; border-radius: 8px; padding: 20px; margin-bottom: 20px; width: 380px;}
+        .widget-title { font-weight: 500; border-bottom: 1px solid #444; padding-bottom: 10px; margin: 0 0 15px 0;}
+        .widget-content { min-height: 120px; }
+        .list-item {
+            display: flex; align-items: center; padding: 6px 12px;
+            margin: 0 -12px 8px -12px; border-radius: 4px; cursor: pointer;
+            transition: background-color 0.2s; background: none;
+        }
+        .list-item:hover { background-color: #3a414a; }
+        .city-name { flex-grow: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;}
+        .aqi-value { font-weight: 700; margin-left: 15px; }
+        .aqi-good { color: #00E400; } .aqi-moderate { color: #FFFF00; } .aqi-sensitive { color: #FF7E00; } .aqi-unhealthy { color: #FF0000; }
+        .loader, .error-message { color: #FF7E00; text-align: center; padding: 10px; }
+    </style>
+</head>
+<body>
+    <header class="dashboard-header">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Tsinghua_University_logo.svg/240px-Tsinghua_University_logo.svg.png" alt="Tsinghua University Logo" id="header-logo" onerror="this.style.display='none'">
+        <div class="header-text">
+            <h1>Global Air Quality Monitoring Dashboard</h1>
+            <p>Group 62 IEDE Research Topic: AI-Driven Environmental Monitoring for a Green Economy</p>
+        </div>
+    </header>
+    <div class="dashboard-container">
+        <div class="widget">
+            <h3 class="widget-title">Top 5 Most Polluted Locations</h3>
+            <div id="top-cities-list" class="widget-content">
+                <div class="loader">Loading live city data...</div>
+            </div>
+        </div>
+    </div>
+    <script>
+    const openAqApiKey = "9f408ed0e450f2c243ab27af6c475b1b8a4f0b6d776a82b55781cb0ab5190a89";
+
+    document.addEventListener('DOMContentLoaded', fetchTopPollutedCities);
+
+    async function fetchTopPollutedCities() {
+        const container = document.getElementById('top-cities-list');
+        container.innerHTML = '<div class="loader">Loading live city data...</div>';
+        // Note: Using corsproxy.io before the OpenAQ URL
+        const url = "https://corsproxy.io/?https://api.openaq.org/v3/measurements?parameter=pm25&order_by=value&sort=desc&limit=5";
+        try {
+            const response = await fetch(url, {
+                headers: {
+                    'Accept': 'application/json',
+                    'X-API-Key': openAqApiKey
+                }
+            });
+            if (!response.ok) throw new Error(`OpenAQ API Error (${response.status}): ${response.statusText}`);
+            const data = await response.json();
+            if (data.results && data.results.length > 0) {
+                populateTopCitiesList(data.results);
+            } else {
+                container.innerHTML = '<div class="error-message">No live city data available from OpenAQ.</div>';
+            }
+        } catch (error) {
+            console.error("Error fetching top polluted cities:", error);
+            container.innerHTML = `<div class="error-message">Could not load city data. ${error.message}</div>`;
+        }
+    }
+
+    function populateTopCitiesList(cities) {
+        const container = document.getElementById('top-cities-list');
+        container.innerHTML = '';
+        cities.forEach((city, index) => {
+            const listItem = document.createElement('div');
+            listItem.className = 'list-item';
+            listItem.setAttribute('data-lat', city.coordinates.latitude);
+            listItem.setAttribute('data-lng', city.coordinates.longitude);
+            listItem.setAttribute('data-name', city.location.name);
+            listItem.setAttribute('data-value', city.value);
+
+            const colorClass = getAqiColorClass(city.value);
+            const cityName = city.city ? `${city.location.name}, ${city.city}` : city.location.name;
+
+            listItem.innerHTML = `
+                <span class="city-name" title="${cityName}">${index + 1}. ${cityName}</span>
+                <span class="aqi-value ${colorClass}">${city.value.toFixed(1)}</span>
+            `;
+            container.appendChild(listItem);
+        });
+    }
+
+    function getAqiColorClass(value) {
+        if (value <= 12) return 'aqi-good';
+        if (value <= 35.4) return 'aqi-moderate';
+        if (value <= 55.4) return 'aqi-sensitive';
+        return 'aqi-unhealthy';
+    }
+    </script>
+</body>
+</html>
