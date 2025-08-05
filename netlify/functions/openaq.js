@@ -1,8 +1,8 @@
 // netlify/functions/openaq.js
-const express = require('express');
+const express    = require('express');
 const serverless = require('serverless-http');
 
-const app = express();
+const app    = express();
 const router = express.Router();
 
 // CORS middleware
@@ -16,31 +16,30 @@ router.use((req, res, next) => {
   next();
 });
 
-// Proxy all GET requests to OpenAQ V3, stripping Netlify function prefix
+// catch all GETs
 router.get('/*', async (req, res) => {
-  // Determine the API path after the function mount
-  const rawPath = req.path; // e.g. '/.netlify/functions/openaq/parameters/2/latest'
-  const prefix = '/.netlify/functions/openaq';
-  // Remove the function prefix if present
-  let endpoint = rawPath.startsWith(prefix)
-    ? rawPath.slice(prefix.length)
-    : rawPath;
-  endpoint = endpoint.replace(/^\/+/, '');
+  // originalUrl includes everything after your domain, e.g.
+  // "/.netlify/functions/openaq/parameters/2/latest?limit=1000"
+  let url = req.originalUrl;
 
-  const queryString = req._parsedUrl.search || '';
-  const targetUrl = `https://api.openaq.org/v3/${endpoint}${queryString}`;
-  console.log(`Proxying request to: ${targetUrl}`);
+  // strip off "/.netlify/functions/openaq"
+  url = url.replace(/^\/\.netlify\/functions\/openaq/, '');
+
+  // build target
+  const target = `https://api.openaq.org/v3${url}`;
+  console.log(`Proxy → ${target}`);
 
   try {
-    const response = await fetch(targetUrl);
-    const data = await response.json();
+    const upstream = await fetch(target);
+    const data     = await upstream.json();
     return res.json(data);
   } catch (err) {
-    console.error('Error proxying to OpenAQ:', err);
+    console.error('Proxy error:', err);
     return res.status(502).json({ error: 'Bad gateway' });
   }
 });
 
+// mount at root
 app.use('/', router);
 
 module.exports.handler = serverless(app);
