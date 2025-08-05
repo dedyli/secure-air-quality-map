@@ -227,8 +227,8 @@
     // --- Configuration ---
     let map, infoWindow, geocoder;
     const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; 
-    // FIX: Pointing to the Netlify serverless function endpoint.
-    const backendProxyUrl = "/api/"; 
+    // FIXED: Correct Netlify function endpoint
+    const backendProxyUrl = "/.netlify/functions/openaq/"; 
     const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f"; 
 
     // --- Initialization ---
@@ -324,6 +324,7 @@
         const container = document.getElementById('top-cities-list');
         container.innerHTML = '<div class="loader">Loading live city data...</div>';
         
+        // FIXED: Updated parameters for OpenAQ v3 API
         const params = new URLSearchParams({
             limit: 100,
             page: 1,
@@ -335,9 +336,18 @@
         const url = `${backendProxyUrl}latest?${params.toString()}`;
 
         try {
+            console.log('Fetching from URL:', url); // Debug log
             const response = await fetch(url);
-            if (!response.ok) throw new Error(`API Error (${response.status}): ${await response.text()}`);
+            console.log('Response status:', response.status); // Debug log
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('API Error response:', errorText);
+                throw new Error(`API Error (${response.status}): ${errorText}`);
+            }
+            
             const data = await response.json();
+            console.log('API Response data:', data); // Debug log
 
             if (data.results && data.results.length > 0) {
                 const filteredResults = data.results.filter(r => r.city);
@@ -347,24 +357,34 @@
             }
         } catch (error) {
             console.error("Error fetching top polluted cities:", error);
-            container.innerHTML = `<div class="error-message">Could not load city data. Check proxy.</div>`;
+            container.innerHTML = `<div class="error-message">Could not load city data: ${error.message}</div>`;
         }
     }
 
     async function getAirQualityDataFromCoords(lat, lng) {
+        // FIXED: Updated parameters for OpenAQ v3 API
         const params = new URLSearchParams({
             coordinates: `${lat},${lng}`,
             radius: 10000,
-            parameters_id: 2,
+            parameters_id: 2, // PM2.5
             sort: 'desc',
-            order_by: 'distance'
+            order_by: 'distance',
+            limit: 1
         });
         const url = `${backendProxyUrl}latest?${params.toString()}`;
+        
+        console.log('Fetching air quality data from:', url); // Debug log
         const response = await fetch(url);
 
-        if (!response.ok) throw new Error('Failed to fetch Air Quality data.');
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Air quality API error:', errorText);
+            throw new Error(`Failed to fetch Air Quality data: ${response.status}`);
+        }
         
         const data = await response.json();
+        console.log('Air quality API response:', data); // Debug log
+        
         if (data.results && data.results.length > 0) {
             const measurement = data.results[0].parameters.find(p => p.parameterId === 2);
             if (measurement) {
@@ -383,20 +403,29 @@
         const dateFrom = new Date();
         dateFrom.setDate(dateFrom.getDate() - 7);
         
+        // FIXED: Updated parameters for OpenAQ v3 API
         const params = new URLSearchParams({
             date_from: dateFrom.toISOString(),
             date_to: dateTo.toISOString(),
             location_id: 1936, // Los Angeles - Example location
-            parameter: 'pm25',
+            parameters_id: 2, // PM2.5
             limit: 500,
             sort: 'desc'
         });
         const url = `${backendProxyUrl}measurements?${params.toString()}`;
 
         try {
+            console.log('Fetching weekly trend from:', url); // Debug log
             const response = await fetch(url);
-            if (!response.ok) throw new Error(`API Error (${response.status}): ${await response.text()}`);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Weekly trend API error:', errorText);
+                throw new Error(`API Error (${response.status}): ${errorText}`);
+            }
+            
             const data = await response.json();
+            console.log('Weekly trend API response:', data); // Debug log
             
             if(data.results && data.results.length > 0) {
                 const dailyData = {};
