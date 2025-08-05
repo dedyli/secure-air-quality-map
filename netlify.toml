@@ -1,2 +1,5 @@
-[build]
-  functions = "netlify/functions"
+[[redirects]]
+  from = "/.netlify/functions/openaq/*"
+  to   = "/.netlify/functions/openaq/:splat"
+  status = 200
+  force  = true
