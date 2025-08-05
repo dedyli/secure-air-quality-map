@@ -86,7 +86,7 @@
             margin: 0 -12px;
             border-radius: 4px;
             cursor: pointer;
-            transition: background-color: 0.2s ease-in-out;
+            transition: background-color 0.2s ease-in-out;
         }
         .list-item:hover { background-color: #3a414a; }
         .list-item .city-name {
@@ -227,7 +227,7 @@
     // --- Configuration ---
     let map, infoWindow, geocoder;
     const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; 
-    const backendProxyUrl = "/api/"; 
+    const backendProxyUrl = "/.netlify/functions/openaq/"; // FIXED: Correct proxy URL
     const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f"; 
 
     // --- Initialization ---
@@ -369,7 +369,7 @@
             if (measurement) {
                 return {
                     value: measurement.lastValue,
-                    location: data.results[0].location, // Use .location for station name
+                    location: data.results[0].location,
                     coordinates: data.results[0].coordinates
                 };
             }
@@ -382,7 +382,6 @@
         const dateFrom = new Date();
         dateFrom.setDate(dateFrom.getDate() - 7);
         
-        // FIX: Corrected parameter to 'parameters_id' for v3
         const params = new URLSearchParams({
             date_from: dateFrom.toISOString(),
             date_to: dateTo.toISOString(),
@@ -391,7 +390,6 @@
             limit: 500,
             sort: 'desc'
         });
-        // FIX: Using the correct '/measurements' endpoint
         const url = `${backendProxyUrl}measurements?${params.toString()}`;
 
         try {
@@ -434,14 +432,12 @@
             const pm25 = city.parameters.find(p => p.parameterId === 2);
             if (!pm25) return;
 
-            // FIX: Use 'location' for station name from v3 API response
             listItem.setAttribute('data-lat', city.coordinates.latitude);
             listItem.setAttribute('data-lng', city.coordinates.longitude);
             listItem.setAttribute('data-name', city.location);
             listItem.setAttribute('data-value', pm25.lastValue);
 
             const colorClass = getAqiColorClass(pm25.lastValue);
-            // FIX: Use 'location' for station name and 'city' for city name
             const cityName = city.city ? `${city.location}, ${city.city}` : city.location;
 
             listItem.innerHTML = `

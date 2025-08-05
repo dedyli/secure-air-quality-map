@@ -1,7 +1,10 @@
+// A serverless backend proxy for Netlify to bypass CORS with the OpenAQ API.
+// To deploy this:
+// 1. Place this file in a `netlify/functions` directory.
+// 2. Create a `netlify.toml` file in your root directory.
+// 3. Run `npm install express serverless-http node-fetch@2 cors`.
+// 4. Deploy to Netlify.
 
-
-
-// Fixed serverless backend proxy for Netlify to bypass CORS with the OpenAQ API.
 const express = require('express');
 const serverless = require('serverless-http');
 const fetch = require('node-fetch');
@@ -11,112 +14,44 @@ const app = express();
 
 // Use CORS to allow requests from your frontend's origin
 app.use(cors());
-app.use(express.json());
 
 const OPENAQ_API_URL = 'https://api.openaq.org/v3/';
 const OPENAQ_API_KEY = '9f408ed0e450f2c243ab27af6c475b1b8a4f0b6d776a82b55781cb0ab5190a89';
 
-// Handle all requests - Netlify functions receive the full path
-app.get('*', async (req, res) => {
+// Handle all requests to the function
+app.get('/.netlify/functions/openaq/*', async (req, res) => {
+    // Extract the API path after /openaq/
+    const apiPath = req.path.replace('/.netlify/functions/openaq/', '');
+    const searchParams = new URLSearchParams(req.query);
+    const fullUrl = `${OPENAQ_API_URL}${apiPath}?${searchParams.toString()}`;
+
+    console.log(`Proxying request to: ${fullUrl}`);
+
     try {
-        // Extract the API endpoint from the request URL
-        let apiPath = req.url;
-        
-        console.log(`[Function Log] Full request URL: ${req.url}`);
-        console.log(`[Function Log] Request path: ${req.path}`);
-        
-        // Remove query string to get just the path
-        if (apiPath.includes('?')) {
-            apiPath = apiPath.split('?')[0];
-        }
-        
-        // Remove the Netlify function prefix to get the OpenAQ endpoint
-        // Path will be like: /.netlify/functions/openaq/parameters/2/latest
-        // We want: parameters/2/latest
-        const functionPrefix = '/.netlify/functions/openaq/';
-        let endpoint = '';
-        
-        if (apiPath.startsWith(functionPrefix)) {
-            endpoint = apiPath.substring(functionPrefix.length);
-        } else {
-            // Fallback: extract everything after the last 'openaq/'
-            const openaqIndex = apiPath.lastIndexOf('openaq/');
-            if (openaqIndex !== -1) {
-                endpoint = apiPath.substring(openaqIndex + 7); // 7 = length of 'openaq/'
-            }
-        }
-        
-        // Default to 'locations' if no endpoint
-        if (!endpoint) {
-            endpoint = 'locations';
-        }
-        
-        console.log(`[Function Log] Extracted endpoint: ${endpoint}`);
-        
-        // Build the full OpenAQ API URL
-        const searchParams = new URLSearchParams(req.query);
-        const fullUrl = `${OPENAQ_API_URL}${endpoint}?${searchParams.toString()}`;
-
-        console.log(`[Function Log] Full OpenAQ URL: ${fullUrl}`);
-
         const response = await fetch(fullUrl, {
-            method: 'GET',
             headers: {
                 'Accept': 'application/json',
-                'X-API-Key': OPENAQ_API_KEY,
-                'User-Agent': 'Air-Quality-Dashboard/1.0'
-            },
-            timeout: 15000 // 15 second timeout
+                'X-API-Key': OPENAQ_API_KEY
+            }
         });
-
-        console.log(`[Function Log] OpenAQ API response status: ${response.status}`);
 
         if (!response.ok) {
             const errorText = await response.text();
-            console.error(`[Function Error] OpenAQ API Error: ${response.status} - ${errorText}`);
-            return res.status(response.status).json({ 
-                error: 'OpenAQ API Error', 
-                status: response.status, 
-                message: errorText,
-                requestedUrl: fullUrl
-            });
+            console.error('OpenAQ API Error:', errorText);
+            return res.status(response.status).send(errorText);
         }
 
         const data = await response.json();
-        
-        // Set CORS headers
-        res.header('Access-Control-Allow-Origin', '*');
-        res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-        
-        console.log(`[Function Log] Successfully returned ${data.results ? data.results.length : 0} results`);
         res.json(data);
 
     } catch (error) {
-        console.error('[Function Error] Proxy Server Error:', error);
+        console.error('Proxy Server Error:', error);
         res.status(500).json({ 
-            error: 'Proxy Server Error', 
-            message: error.message,
-            stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            message: 'Error fetching data from the proxy server.', 
+            details: error.message 
         });
     }
 });
 
-// Handle preflight OPTIONS requests
-app.options('*', (req, res) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-    res.sendStatus(200);
-});
-
 // Export the handler for Netlify
 module.exports.handler = serverless(app);
-
-// For local testing
-if (process.env.NODE_ENV === 'development') {
-    const port = process.env.PORT || 3000;
-    app.listen(port, () => {
-        console.log(`Development server running on port ${port}`);
-    });
-}
