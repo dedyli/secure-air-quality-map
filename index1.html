@@ -1,97 +1,44 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Air Quality Monitoring Dashboard</title>
-    <style>
-        body { font-family: sans-serif; background-color: #f0f2f5; margin: 20px; }
-        .sidebar { max-width: 400px; }
-        .widget { background-color: #fff; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .widget-title { margin: 0 0 15px 0; font-weight: 500; border-bottom: 1px solid #eee; padding-bottom: 10px; }
-        .loader, .error-message { color: #888; text-align: center; }
-        .list-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
-        .list-item:last-child { border-bottom: none; }
-        .city-name { flex-grow: 1; }
-        .aqi-value { font-weight: bold; }
-        .aqi-good { color: #00E400; }
-        .aqi-moderate { color: #FFD700; }
-        .aqi-sensitive { color: #FF7E00; }
-        .aqi-unhealthy { color: #FF0000; }
-    </style>
-</head>
-<body>
+async function fetchTopPollutedCities() {
+    const container = document.getElementById('top-cities-list');
+    container.innerHTML = '<div class="loader">Loading live city data...</div>';
+    try {
+        // Use the correct '/latest' endpoint with 'parameter' in the query string
+        const resp = await fetch(
+            `${backendProxyUrl}/latest?limit=1000&parameter=pm25&order_by=lastUpdated`
+        );
+        if (!resp.ok) throw new Error(`API Error (${resp.status})`);
 
-    <aside class="sidebar">
-        <div class="widget">
-            <h3 class="widget-title">Top 5 Most Polluted Cities</h3>
-            <div id="top-cities-list" class="widget-content">
-                <div class="loader">Loading live city data...</div>
-            </div>
-        </div>
-    </aside>
+        const data = await resp.json();
+        const results = data.results || [];
+        console.log('Fetched records:', results.length, results.length > 0 ? results[0] : 'No results');
 
-    <script>
-    // This URL points to your Netlify function, which acts as a proxy
-    const backendProxyUrl = "/.netlify/functions/openaq";
+        // ... (the rest of your excellent processing logic) ...
 
-    function getAqiColorClass(value) {
-        if (value <= 12) return 'aqi-good';
-        if (value <= 35.4) return 'aqi-moderate';
-        if (value <= 55.4) return 'aqi-sensitive';
-        return 'aqi-unhealthy';
+        const cityMax = results.reduce((acc, rec) => {
+            const city = rec.city || rec.location;
+            if (city && rec.measurements && rec.measurements.length > 0) {
+                acc[city] = Math.max(acc[city] || 0, rec.measurements[0].value);
+            }
+            return acc;
+        }, {});
+
+        const top5 = Object.entries(cityMax)
+            .map(([city, pm25]) => ({ city, pm25 }))
+            .sort((a, b) => b.pm25 - a.pm25)
+            .slice(0, 5);
+
+        container.innerHTML = '';
+        top5.forEach((item, idx) => {
+            const listItem = document.createElement('div');
+            listItem.className = 'list-item';
+            listItem.innerHTML =
+                `<span class="city-name">${idx + 1}. ${item.city}</span>` +
+                `<span class="aqi-value ${getAqiColorClass(item.pm25)}">${item.pm25.toFixed(1)} µg/m³</span>`;
+            container.appendChild(listItem);
+        });
+
+    } catch (error) {
+        console.error('Error loading top 5 cities:', error, error.stack);
+        container.innerHTML = `<div class="error-message">Could not load city data.</div>`;
     }
-
-    // This function contains the corrected API call
-    async function fetchTopPollutedCities() {
-        const container = document.getElementById('top-cities-list');
-        container.innerHTML = '<div class="loader">Loading live city data...</div>';
-        try {
-            // FIXED: Use the correct '/latest' endpoint and pass 'pm25' as a parameter.
-            const resp = await fetch(
-              `${backendProxyUrl}/latest?limit=1000&parameter=pm25&order_by=lastUpdated`
-            );
-            if (!resp.ok) throw new Error(`API Error (${resp.status})`);
-
-            const data = await resp.json();
-            const results = data.results || [];
-
-            // Your excellent data processing logic remains the same.
-            // It correctly groups results by city and finds the max value.
-            const cityMax = results.reduce((acc, rec) => {
-                const city = rec.city || rec.location;
-                // Ensure the record is valid and has measurements
-                if (city && rec.measurements && rec.measurements.length > 0) {
-                   acc[city] = Math.max(acc[city] || 0, rec.measurements[0].value);
-                }
-                return acc;
-            }, {});
-
-            // This correctly sorts and takes the top 5
-            const top5 = Object.entries(cityMax)
-                .map(([city, pm25]) => ({ city, pm25 }))
-                .sort((a, b) => b.pm25 - a.pm25)
-                .slice(0, 5);
-
-            container.innerHTML = '';
-            top5.forEach((item, idx) => {
-                const listItem = document.createElement('div');
-                listItem.className = 'list-item';
-                listItem.innerHTML = 
-                    `<span class="city-name">${idx + 1}. ${item.city}</span>` +
-                    `<span class="aqi-value ${getAqiColorClass(item.pm25)}">${item.pm25.toFixed(1)} µg/m³</span>`;
-                container.appendChild(listItem);
-            });
-        } catch (error) {
-            console.error('Error loading top 5 cities:', error);
-            container.innerHTML = `<div class="error-message">Could not load city data.</div>`;
-        }
-    }
-
-    // Initialize the dashboard when the page loads
-    document.addEventListener('DOMContentLoaded', () => {
-        fetchTopPollutedCities();
-    });
-    </script>
-</body>
-</html>
+}

@@ -1,45 +1,27 @@
-// netlify/functions/openaq.js
-const express    = require('express');
-const serverless = require('serverless-http');
+const fetch = require('node-fetch');
 
-const app    = express();
-const router = express.Router();
+exports.handler = async function (event) {
+  const API_ENDPOINT = 'https://api.openaq.org/v3';
+  const API_KEY = process.env.OPENAQ_API_KEY;
 
-// CORS middleware
-router.use((req, res, next) => {
-  res.set({
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET,OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  });
-  if (req.method === 'OPTIONS') return res.status(204).end();
-  next();
-});
-
-// catch all GETs
-router.get('/*', async (req, res) => {
-  // originalUrl includes everything after your domain, e.g.
-  // "/.netlify/functions/openaq/parameters/2/latest?limit=1000"
-  let url = req.originalUrl;
-
-  // strip off "/.netlify/functions/openaq"
-  url = url.replace(/^\/\.netlify\/functions\/openaq/, '');
-
-  // build target
-  const target = `https://api.openaq.org/v3${url}`;
-  console.log(`Proxy → ${target}`);
+  // This line correctly removes the function's path
+  const path = event.path.replace('/.netlify/functions/openaq', '');
+  const queryString = new URLSearchParams(event.queryStringParameters).toString();
+  const url = `${API_ENDPOINT}${path}?${queryString}`;
 
   try {
-    const upstream = await fetch(target);
-    const data     = await upstream.json();
-    return res.json(data);
-  } catch (err) {
-    console.error('Proxy error:', err);
-    return res.status(502).json({ error: 'Bad gateway' });
+    const response = await fetch(url, {
+      headers: { 'X-API-Key': API_KEY }
+    });
+    const data = await response.text();
+    return {
+      statusCode: response.status,
+      body: data,
+    };
+  } catch (error) {
+    return {
+      statusCode: 500,
+      body: JSON.stringify({ error: 'Proxy error' }),
+    };
   }
-});
-
-// mount at root
-app.use('/', router);
-
-module.exports.handler = serverless(app);
+};
