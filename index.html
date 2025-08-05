@@ -4,134 +4,40 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Global Air Quality Monitoring Dashboard</title>
-    <link rel="stylesheet" href="dashboard-style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            background-color: #1A1A1A;
-            color: #EAEAEA;
-            font-family: 'Inter', sans-serif;
-            margin: 0;
-            overflow: hidden;
-        }
-        
-        .dashboard-header {
-            display: flex;
-            align-items: center;
-            padding: 10px 25px;
-            background-color: #F8F9FA;
-            position: relative;
-            border-bottom: 1px solid #DEE2E6;
-            height: 75px; 
-            box-sizing: border-box;
-        }
-        #header-logo {
-            height: 50px;
-            margin-right: 20px;
-        }
-        .header-text {
-            flex-grow: 1;
-        }
-        .header-text h1 {
-            font-size: 22px;
-            margin-bottom: 4px;
-            color: #212529;
-        }
-        .header-text p {
-            font-size: 14px;
-            color: #495057;
-        }
-
-        .dashboard-container {
-            display: grid;
-            grid-template-columns: 1fr 380px;
-            height: calc(100vh - 75px);
-            padding: 15px;
-            gap: 15px;
-            transition: grid-template-columns 0.4s ease-in-out;
-        }
-
-        .map-panel, .sidebar {
-            height: 100%;
-            position: relative;
-        }
-
-        .sidebar {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            overflow: hidden;
-        }
-        
-        .widget {
-            background-color: #2a2a2e;
-            border-radius: 8px;
-            padding: 15px 20px;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .widget-content.scrollable {
-             overflow-y: auto;
-        }
-        #news-list.widget-content {
-            flex-grow: 1;
-        }
-
-        .widget-title { margin: 0 0 15px 0; font-weight: 500; border-bottom: 1px solid #444; padding-bottom: 10px; }
-        
-        .list-item {
-            display: flex;
-            align-items: center;
-            padding: 6px 12px;
-            margin: 0 -12px;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
-        }
-        .list-item:hover { background-color: #3a414a; }
-        .list-item .city-name {
-            flex-grow: 1;
-        }
-        .list-item .aqi-value {
-            margin-left: 15px;
-        }
-        
-        .aqi-value { font-weight: 700; }
-        .aqi-value.aqi-good { color: #00E400; }
-        .aqi-value.aqi-moderate { color: #FFFF00; }
-        .aqi-value.aqi-sensitive { color: #FF7E00; }
-        .aqi-value.aqi-unhealthy { color: #FF0000; }
-        
-        #sidebar-toggle-btn {
-            background-color: rgba(76, 139, 245, 0.8);
-            color: white;
-            border: none;
-            border-radius: 5px;
-            padding: 8px 12px;
-            font-size: 20px;
-            line-height: 1;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            margin-left: 20px;
-        }
-        #sidebar-toggle-btn:hover { background-color: rgba(76, 139, 245, 1); }
-
-        .dashboard-container.sidebar-collapsed { grid-template-columns: 1fr 0; gap: 0; }
-
-        #legend-map {
-            position: absolute; bottom: 30px; right: 10px; background-color: rgba(30, 30, 30, 0.85);
-            backdrop-filter: blur(5px); color: #fff; padding: 10px 15px; border-radius: 8px; z-index: 5;
-            font-size: 14px; line-height: 1.5; border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        #legend-map h4 { margin: 0 0 8px 0; text-align: center; font-weight: 500; border-bottom: 1px solid #444; padding-bottom: 5px; }
-        #legend-map div { display: flex; align-items: center; margin-bottom: 4px; }
-        #legend-map div:last-child { margin-bottom: 0; }
-        #legend-map span { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; display: inline-block; border: 1px solid #555; }
-
-        .error-message {
-            color: #FF7E00;
-        }
+        body{background-color:#1A1A1A;color:#EAEAEA;font-family:'Inter',sans-serif;margin:0;overflow:hidden}
+        .dashboard-header{display:flex;align-items:center;padding:10px 25px;background-color:#F8F9FA;position:relative;border-bottom:1px solid #DEE2E6;height:75px;box-sizing:border-box}
+        #header-logo{height:50px;margin-right:20px}
+        .header-text{flex-grow:1}
+        .header-text h1{font-size:22px;margin-bottom:4px;color:#212529}
+        .header-text p{font-size:14px;color:#495057}
+        .dashboard-container{display:grid;grid-template-columns:1fr 380px;height:calc(100vh - 75px);padding:15px;gap:15px;transition:grid-template-columns .4s ease-in-out}
+        .map-panel,.sidebar{height:100%;position:relative}
+        .sidebar{display:flex;flex-direction:column;gap:15px;overflow:hidden}
+        .widget{background-color:#2a2a2e;border-radius:8px;padding:15px 20px;display:flex;flex-direction:column}
+        .widget-content.scrollable{overflow-y:auto}
+        #news-list.widget-content{flex-grow:1}
+        .widget-title{margin:0 0 15px;font-weight:500;border-bottom:1px solid #444;padding-bottom:10px}
+        .list-item{display:flex;align-items:center;padding:6px 12px;margin:0 -12px;border-radius:4px;cursor:pointer;transition:background-color .2s ease-in-out}
+        .list-item:hover{background-color:#3a414a}
+        .list-item .city-name{flex-grow:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .list-item .aqi-value{margin-left:15px;flex-shrink:0}
+        .aqi-value{font-weight:700}
+        .aqi-value.aqi-good{color:#00E400}
+        .aqi-value.aqi-moderate{color:#FFFF00}
+        .aqi-value.aqi-sensitive{color:#FF7E00}
+        .aqi-value.aqi-unhealthy{color:#FF0000}
+        #sidebar-toggle-btn{background-color:rgba(76,139,245,.8);color:#fff;border:none;border-radius:5px;padding:8px 12px;font-size:20px;line-height:1;cursor:pointer;transition:background-color .3s;margin-left:20px}
+        #sidebar-toggle-btn:hover{background-color:rgba(76,139,245,1)}
+        .dashboard-container.sidebar-collapsed{grid-template-columns:1fr 0;gap:0}
+        #legend-map{position:absolute;bottom:30px;right:10px;background-color:rgba(30,30,30,.85);backdrop-filter:blur(5px);color:#fff;padding:10px 15px;border-radius:8px;z-index:5;font-size:14px;line-height:1.5;border:1px solid rgba(255,255,255,.1)}
+        #legend-map h4{margin:0 0 8px;text-align:center;font-weight:500;border-bottom:1px solid #444;padding-bottom:5px}
+        #legend-map div{display:flex;align-items:center;margin-bottom:4px}
+        #legend-map div:last-child{margin-bottom:0}
+        #legend-map span{width:14px;height:14px;border-radius:50%;margin-right:10px;display:inline-block;border:1px solid #555}
+        .error-message{color:#FF7E00}
     </style>
 </head>
 <body>
@@ -143,241 +49,173 @@
         </div>
         <button id="sidebar-toggle-btn" title="Toggle Sidebar">☰</button>
     </header>
-
     <div class="dashboard-container">
         <main class="map-panel">
-            <div id="search-container">
-                <input id="address-input" type="text" placeholder="Enter a location to search">
-                <button id="search-button">Search</button>
-            </div>
             <div id="map"></div>
             <div id="legend-map">
-                <h4>AQI Legend</h4>
-                <div><span style="background-color: #00E400;"></span> 0-50: Good</div>
-                <div><span style="background-color: #FFFF00;"></span> 51-100: Moderate</div>
-                <div><span style="background-color: #FF7E00;"></span> 101-150: Unhealthy for Sensitive</div>
-                <div><span style="background-color: #FF0000;"></span> 151+: Unhealthy</div>
+                <h4>AQI Legend (PM2.5 µg/m³)</h4>
+                <div><span style="background-color: #00E400;"></span> 0-12: Good</div>
+                <div><span style="background-color: #FFFF00;"></span> 13-35: Moderate</div>
+                <div><span style="background-color: #FF7E00;"></span> 36-55: Unhealthy for Sensitive</div>
+                <div><span style="background-color: #FF0000;"></span> 55+: Unhealthy</div>
             </div>
         </main>
-
         <aside class="sidebar">
             <div class="widget">
-                <h3 class="widget-title">Top 5 Most Polluted Cities</h3>
-                <div id="top-cities-list" class="widget-content">
-                    <div class="loader">Loading live city data...</div>
+                <h3 class="widget-title">Top 5 Polluted Stations (PM2.5)</h3>
+                <div id="top-stations-list" class="widget-content">
+                    <div class="loader">Loading live station data...</div>
                 </div>
             </div>
-
             <div class="widget">
-                <h3 class="widget-title">Global AQI Trend (Last 7 Days)</h3>
+                <h3 class="widget-title">Global PM2.5 Trend (Last 7 Days)</h3>
                 <div id="global-trend-chart" class="widget-content">
                     <canvas id="aqiTrendChart"></canvas>
-                </div>
-            </div>
-
-            <div class="widget">
-                <h3 class="widget-title">Air Pollution News & Research</h3>
-                <div id="news-list" class="widget-content scrollable">
-                    <div class="loader">Loading news feed...</div>
                 </div>
             </div>
         </aside>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
     <script>
-    let map, infoWindow, geocoder;
-    let googleApiKey; // Store the key for reuse
+    let map, infoWindow, trendChart;
 
-    // --- NEW: Predefined list of major world cities for ranking ---
-    // Google's API requires us to check specific points to create a ranking.
-    const majorCities = [
-        { name: "Delhi, India", lat: 28.7041, lng: 77.1025 }, { name: "Dhaka, Bangladesh", lat: 23.8103, lng: 90.4125 },
-        { name: "Beijing, China", lat: 39.9042, lng: 116.4074 }, { name: "Karachi, Pakistan", lat: 24.8607, lng: 67.0011 },
-        { name: "Jakarta, Indonesia", lat: -6.2088, lng: 106.8456 }, { name: "Lagos, Nigeria", lat: 6.5244, lng: 3.3792 },
-        { name: "Cairo, Egypt", lat: 30.0444, lng: 31.2357 }, { name: "Mexico City, Mexico", lat: 19.4326, lng: -99.1332 },
-        { name: "Sao Paulo, Brazil", lat: -23.5505, lng: -46.6333 }, { name: "Mumbai, India", lat: 19.0760, lng: 72.8777 },
-        { name: "Shanghai, China", lat: 31.2304, lng: 121.4737 }, { name: "Kolkata, India", lat: 22.5726, lng: 88.3639 },
-        { name: "Manila, Philippines", lat: 14.5995, lng: 120.9842 }, { name: "Moscow, Russia", lat: 55.7558, lng: 37.6173 },
-        { name: "Bangkok, Thailand", lat: 13.7563, lng: 100.5018 }, { name: "Tehran, Iran", lat: 35.6892, lng: 51.3890 },
-        { name: "Los Angeles, USA", lat: 34.0522, lng: -118.2437 }, { name: "London, UK", lat: 51.5074, lng: -0.1278 },
-        { name: "Johannesburg, South Africa", lat: -26.2041, lng: 28.0473 }, { name: "Santiago, Chile", lat: -33.4489, lng: -70.6693 },
-        { name: "Ho Chi Minh City, Vietnam", lat: 10.8231, lng: 106.6297 }, { name: "Lima, Peru", lat: -12.0464, lng: -77.0428 },
-        { name: "Riyadh, Saudi Arabia", lat: 24.7136, lng: 46.6753 }, { name: "Kuala Lumpur, Malaysia", lat: 3.1390, lng: 101.6869 },
-        { name: "Baghdad, Iraq", lat: 33.3152, lng: 44.3661 }
-    ];
+    const openAqApiKey = "9f408ed0e450f2c243ab27af6c475b1b8a4f0b6d776a82b55781cb0ab5190a89"; 
+    const googleMapsApiKey = "9f408ed0e450f2c243ab27af6c475b1b8a4f0b6d776a82b55781cb0ab5190a89"; 
 
     async function initMap() {
-        // ... (map initialization code is identical) ...
         map = new google.maps.Map(document.getElementById('map'), {
             center: { lat: 20, lng: 0 }, zoom: 3, mapTypeId: 'satellite',
             styles: [
-                { elementType: 'geometry', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-                { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] }, { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-                { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] }, { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
-                { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] }, { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
-                { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] }, { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
-                { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] }, { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
-                { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] }, { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-                { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] }, { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
-                { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] }
+                { elementType: 'geometry', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] }, { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] }, { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] }, { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] }, { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] }, { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] }, { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] }, { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] }, { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] }, { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] }, { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] }, { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] }, { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] }, { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] }, { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] }, { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] }
             ]
         });
         infoWindow = new google.maps.InfoWindow();
-        geocoder = new google.maps.Geocoder();
-        const airQualityHeatmap = new google.maps.visualization.HeatmapLayer({
-            data: getSimulatedHeatmapData(), map: map, radius: 35, opacity: 0.7,
-            gradient: ['rgba(0, 228, 0, 0)', 'rgba(0, 228, 0, 1)', 'rgba(255, 255, 0, 1)', 'rgba(255, 126, 0, 1)', 'rgba(255, 0, 0, 1)']
-        });
-        map.addListener('click', async (mapsMouseEvent) => {
-            const latLng = mapsMouseEvent.latLng;
-            infoWindow.setPosition(latLng); infoWindow.setContent('Fetching location data...'); infoWindow.open(map);
-            try {
-                const [locationName, airQualityData] = await Promise.all([getLocationName(latLng), getAirQualityData(latLng)]); // Pass LatLng object
-                displayAirQualityInfo(airQualityData, locationName, latLng);
-            } catch (error) {
-                console.error('Detailed Error:', error); infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> ${error.message}</div>`);
-            }
-        });
-        const searchButton = document.getElementById('search-button');
-        const addressInput = document.getElementById('address-input');
-        searchButton.addEventListener('click', () => geocodeAddress(addressInput.value));
-        addressInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') geocodeAddress(addressInput.value); });
 
-        initCharts();
-        getNewsData();
-
-        const topCitiesListContainer = document.getElementById('top-cities-list');
+        // --- Start fetching data for widgets ---
+        await initCharts();
+        
+        const topStationsListContainer = document.getElementById('top-stations-list');
         try {
-            // --- MODIFIED: Call the new Google-based function ---
-            const liveTopCities = await fetchGoogleTopCitiesData();
-            if (liveTopCities && liveTopCities.length > 0) {
-                populateTopCitiesList(liveTopCities);
+            const liveTopStations = await fetchOpenAqTopStations();
+            if (liveTopStations && liveTopStations.length > 0) {
+                populateTopStationsList(liveTopStations);
             } else {
-                topCitiesListContainer.innerHTML = '<div class="error-message">Could not load live city data from Google.</div>';
+                topStationsListContainer.innerHTML = '<div class="error-message">Could not load station data. Check OpenAQ API Key.</div>';
             }
         } catch (error) {
-            topCitiesListContainer.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+            topStationsListContainer.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
         }
-        document.getElementById('top-cities-list').addEventListener('click', handleCityClick);
+        document.getElementById('top-stations-list').addEventListener('click', handleStationClick);
     }
     
-    // --- NEW: Function to get live rankings using Google Air Quality API ---
-    async function fetchGoogleTopCitiesData() {
-        if (!googleApiKey) {
-            console.error("Google API Key not available for Air Quality requests.");
-            return [];
+    // --- OpenAQ Data Fetching Functions ---
+    async function fetchOpenAqTopStations() {
+        const url = 'https://api.openaq.org/v2/latest?limit=100&page=1&offset=0&sort=desc&parameter=pm25&radius=1000&order_by=value';
+        const options = { method: 'GET', headers: { accept: 'application/json' } };
+        if (openAqApiKey && openAqApiKey !== 'YOUR_OPENAQ_API_KEY') {
+            options.headers['X-API-Key'] = openAqApiKey;
         }
 
-        const promises = majorCities.map(city => {
-            return fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    location: {
-                        latitude: city.lat,
-                        longitude: city.lng
-                    }
-                })
-            }).then(response => response.json())
-              .then(data => {
-                // Return a combined object with original city info and the fetched AQI
-                return {
-                    ...city, // name, lat, lng
-                    aqi: data.indexes && data.indexes[0] ? data.indexes[0].aqi : 0 // Default to 0 if no data
-                };
-              }).catch(error => {
-                console.error(`Error fetching AQI for ${city.name}:`, error);
-                return { ...city, aqi: 0 }; // Return with 0 AQI on error
-              });
-        });
-
-        try {
-            const citiesWithAqi = await Promise.all(promises);
-            // Sort by AQI descending and take the top 5
-            citiesWithAqi.sort((a, b) => b.aqi - a.aqi);
-            return citiesWithAqi.slice(0, 5);
-        } catch (error) {
-            console.error("Failed to fetch or process city AQI data:", error);
-            return [];
-        }
+        const response = await fetch(url, options);
+        if (!response.ok) throw new Error(`OpenAQ Stations API Error: ${response.status}`);
+        const data = await response.json();
+        
+        return data.results.slice(0, 5).map(station => ({
+            name: station.location,
+            lat: station.coordinates.latitude,
+            lng: station.coordinates.longitude,
+            value: station.value,
+            unit: station.parameter
+        }));
     }
 
-    function populateTopCitiesList(cities) {
-        const listContainer = document.getElementById('top-cities-list');
-        listContainer.innerHTML = ''; 
+    async function fetchOpenAqGlobalTrend() {
+        const dateTo = new Date();
+        const dateFrom = new Date();
+        dateFrom.setDate(dateTo.getDate() - 7);
+        const url = `https://api.openaq.org/v2/averages?spatial=global&temporal=day&parameter=pm25&date_from=${dateFrom.toISOString().split('T')[0]}&date_to=${dateTo.toISOString().split('T')[0]}`;
+        const options = { method: 'GET', headers: { accept: 'application/json' } };
+        if (openAqApiKey && openAqApiKey !== 'YOUR_OPENAQ_API_KEY') {
+            options.headers['X-API-Key'] = openAqApiKey;
+        }
 
-        cities.forEach((city, index) => {
+        const response = await fetch(url, options);
+        if (!response.ok) throw new Error(`OpenAQ Trend API Error: ${response.status}`);
+        const data = await response.json();
+        if (!data.results || data.results.length === 0) return { labels: [], data: [] };
+        
+        data.results.sort((a, b) => new Date(a.day) - new Date(b.day));
+        return {
+            labels: data.results.map(r => new Date(r.day).toLocaleDateString(undefined, { weekday: 'short' })),
+            data: data.results.map(r => r.average.toFixed(2))
+        };
+    }
+
+    // --- UI Population Functions ---
+    function populateTopStationsList(stations) {
+        const listContainer = document.getElementById('top-stations-list');
+        listContainer.innerHTML = ''; 
+        stations.forEach((station, index) => {
             const listItem = document.createElement('div');
             listItem.className = 'list-item';
-            listItem.setAttribute('data-lat', city.lat);
-            listItem.setAttribute('data-lng', city.lng);
-            listItem.setAttribute('data-name', city.name);
-            listItem.setAttribute('data-aqi', city.aqi);
+            listItem.setAttribute('data-lat', station.lat);
+            listItem.setAttribute('data-lng', station.lng);
+            listItem.setAttribute('data-name', station.name);
+            listItem.setAttribute('data-value', station.value);
+            
+            const value = station.value;
+            const valueColor = value > 55 ? 'aqi-unhealthy' : (value > 35 ? 'aqi-sensitive' : (value > 12 ? 'aqi-moderate' : 'aqi-good'));
 
-            const colorClass = getAqiColorClass(city.aqi);
-
-            listItem.innerHTML = `
-                <span class="city-name">${index + 1}. ${city.name}</span>
-                <span class="aqi-value ${colorClass}">${city.aqi}</span>
-            `;
+            listItem.innerHTML = `<span class="city-name" title="${station.name}">${index + 1}. ${station.name}</span><span class="aqi-value ${valueColor}">${value}</span>`;
             listContainer.appendChild(listItem);
         });
     }
-
-    // --- MODIFIED: Use Google AQI API for clicks as well ---
-    async function getAirQualityData(latLng) { // Accepts LatLng object now
-        const response = await fetch(`https://airquality.googleapis.com/v1/currentConditions:lookup?key=${googleApiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                location: {
-                    latitude: latLng.lat(),
-                    longitude: latLng.lng()
-                }
-            })
-        });
-        if (!response.ok) {
-            throw new Error('Failed to fetch Air Quality data from Google.');
-        }
-        return await response.json();
-    }
     
-    // --- MODIFIED: Extract API key for reuse ---
+    async function initCharts() {
+        const ctx = document.getElementById('aqiTrendChart').getContext('2d');
+        const trendData = await fetchOpenAqGlobalTrend();
+        const chartLabel = trendData.labels.length > 0 ? 'Global Avg PM2.5' : 'Could not load trend data';
+        trendChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: trendData.labels.length > 0 ? trendData.labels : ['N/A'],
+                datasets: [{
+                    label: chartLabel, data: trendData.data, borderColor: '#4C8BF5',
+                    backgroundColor: 'rgba(76, 139, 245, 0.2)', fill: true, tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: { y: { beginAtZero: false, title: { display: true, text: 'PM2.5 (µg/m³)' } } },
+                plugins: { legend: { display: true } }
+            }
+        });
+    }
+
+    function handleStationClick(event) {
+        const stationItem = event.target.closest('.list-item');
+        if (!stationItem) return;
+        const lat = parseFloat(stationItem.dataset.lat);
+        const lng = parseFloat(stationItem.dataset.lng);
+        const name = stationItem.dataset.name;
+        const value = parseFloat(stationItem.dataset.value);
+        const location = new google.maps.LatLng(lat, lng);
+        map.setCenter(location);
+        map.setZoom(11);
+        infoWindow.setPosition(location);
+        infoWindow.setContent(`<div class="info-window-content"><h3>${name}</h3><p><strong>PM2.5:</strong> ${value} µg/m³</p></div>`);
+        infoWindow.open(map);
+    }
+
     function loadMapScript() {
         const script = document.createElement('script');
-        googleApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; // Use your actual key here
-        script.src = `https://maps.googleapis.com/maps/api/js?key=${googleApiKey}&libraries=visualization,places&callback=initMap`;
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&callback=initMap`;
         script.async = true; script.defer = true;
         script.onerror = () => { document.getElementById('map').innerText = 'Error: Could not load Google Maps...'; };
         document.head.appendChild(script);
     }
-    
-    // ... (All other functions like handleCityClick, geocodeAddress, etc., remain unchanged) ...
-    async function geocodeAddress(address) { if (!address) { alert('Please enter a location to search.'); return; } geocoder.geocode({ 'address': address }, async (results, status) => { if (status === 'OK') { const location = results[0].geometry.location; map.setCenter(location); map.setZoom(11); try { const airQualityData = await getAirQualityData(location); displayAirQualityInfo(airQualityData, results[0].formatted_address, location); } catch (error) { console.error('Geocode Error:', error); infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> Could not retrieve data for this location.</div>`); } } else { alert('Geocode was not successful for the following reason: ' + status); } }); }
-    async function getLocationName(latLng) { return new Promise((resolve, reject) => { geocoder.geocode({ 'location': latLng }, (results, status) => { if (status === 'OK') { if (results[0]) { resolve(results[0].formatted_address); } else { resolve("Location name not found"); } } else { console.error("Geocoder failed due to: " + status); resolve("Location name not found"); } }); }); }
-    function getStandardCategoryFromAqi(aqi) { if (aqi <= 50) return 'Good'; if (aqi <= 100) return 'Moderate'; if (aqi <= 150) return 'Unhealthy for Sensitive Groups'; if (aqi <= 200) return 'Unhealthy'; if (aqi <= 300) return 'Very Unhealthy'; return 'Hazardous'; }
-    function getAqiColorClass(aqi) { if (aqi <= 50) return 'aqi-good'; if (aqi <= 100) return 'aqi-moderate'; if (aqi <= 150) return 'aqi-sensitive'; return 'aqi-unhealthy'; }
-    function getSimulatedHeatmapData() { const locations = [{ lat: 34.0522, lng: -118.2437, weight: 120 }, { lat: 19.4326, lng: -99.1332, weight: 150 }, { lat: 40.7128, lng: -74.0060, weight: 80 }, { lat: -23.5505, lng: -46.6333, weight: 180 }, { lat: -34.6037, lng: -58.3816, weight: 60 }, { lat: 51.5074, lng: -0.1278, weight: 45 }, { lat: 48.8566, lng: 2.3522, weight: 55 }, { lat: 55.7558, lng: 37.6173, weight: 90 }, { lat: 6.5244, lng: 3.3792, weight: 175 }, { lat: 30.0444, lng: 31.2357, weight: 160 }, { lat: 39.9042, lng: 116.4074, weight: 210 }, { lat: 35.6895, lng: 139.6917, weight: 30 }, { lat: 19.0760, lng: 72.8777, weight: 190 }, { lat: -6.2088, lng: 106.8456, weight: 152 }, { lat: -33.8688, lng: 151.2093, weight: 40 },]; return locations.map(loc => ({ location: new google.maps.LatLng(loc.lat, loc.lng), weight: loc.weight })); }
-    function displayAirQualityInfo(data, locationName, position) { infoWindow.setPosition(position); if (data.error || !data.indexes || data.indexes.length === 0) { infoWindow.setContent(`<div class="info-window-content"><strong>${locationName}</strong><br>No air quality data available.</div>`); infoWindow.open(map); return; } const { aqi, dominantPollutant } = data.indexes[0]; const standardCategory = getStandardCategoryFromAqi(aqi); infoWindow.setContent(`<div class="info-window-content"><h3>${locationName}</h3><p><strong>AQI:</strong> ${aqi}</p><p><strong>Category:</strong> ${standardCategory}</p><p><strong>Dominant Pollutant:</strong> ${dominantPollutant}</p></div>`); infoWindow.open(map); }
-    function initCharts() { const ctx = document.getElementById('aqiTrendChart').getContext('2d'); new Chart(ctx, { type: 'line', data: { labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], datasets: [{ label: 'Global Average AQI', data: [55, 60, 58, 62, 70, 75, 72], borderColor: '#4C8BF5', backgroundColor: 'rgba(76, 139, 245, 0.2)', fill: true, tension: 0.4 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false } }, plugins: { legend: { display: false } } } }); }
-    function handleCityClick(event) { const cityItem = event.target.closest('.list-item'); if (!cityItem) return; const lat = parseFloat(cityItem.dataset.lat); const lng = parseFloat(cityItem.dataset.lng); const name = cityItem.dataset.name; const aqi = parseInt(cityItem.dataset.aqi); const location = new google.maps.LatLng(lat, lng); map.setCenter(location); map.setZoom(11); const airQualityData = { indexes: [{ aqi: aqi, dominantPollutant: 'PM2.5' }] }; displayAirQualityInfo(airQualityData, name, location); }
-    async function getNewsData() { const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f"; const query = encodeURIComponent('"air pollution" OR "air quality"'); const newsUrl = `https://gnews.io/api/v4/search?q=${query}&lang=en&max=10&apikey=${newsApiKey}`; const newsListContainer = document.getElementById('news-list'); try { const response = await fetch(newsUrl); if (!response.ok) { const err = new Error(`HTTP error! Status: ${response.status}`); err.status = response.status; throw err; } const data = await response.json(); populateNewsList(data.articles); } catch (error) { console.error("Could not fetch news:", error); if (error.status === 401) { newsListContainer.innerHTML = `<div class="error-message">News feed error: Invalid API Key.</div>`; } else if (error.status === 403) { newsListContainer.innerHTML = `<div class="error-message">News feed error: Access denied.</div>`; } else { newsListContainer.innerHTML = `<div class="error-message">Could not load news feed.</div>`; } } }
-    function populateNewsList(articles) { const newsListContainer = document.getElementById('news-list'); newsListContainer.innerHTML = ''; if (!articles || articles.length === 0) { newsListContainer.innerHTML = 'No recent news articles found.'; return; } articles.forEach(article => { const newsItem = document.createElement('div'); newsItem.className = 'news-item'; const publishedDate = new Date(article.publishedAt); const timeAgo = getTimeAgo(publishedDate); newsItem.innerHTML = `<a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a><span class="news-source">${article.source.name} &middot; ${timeAgo}</span>`; newsListContainer.appendChild(newsItem); }); }
-    function getTimeAgo(date) { const seconds = Math.floor((new Date() - date) / 1000); let interval = seconds / 31536000; if (interval > 1) return Math.floor(interval) + " years ago"; interval = seconds / 2592000; if (interval > 1) return Math.floor(interval) + " months ago"; interval = seconds / 86400; if (interval > 1) return Math.floor(interval) + " days ago"; interval = seconds / 3600; if (interval > 1) return Math.floor(interval) + " hours ago"; interval = seconds / 60; if (interval > 1) return Math.floor(interval) + " minutes ago"; return Math.floor(seconds) + " seconds ago"; }
-    
-    document.addEventListener('DOMContentLoaded', () => {
-        loadMapScript();
-        const toggleButton = document.getElementById('sidebar-toggle-btn');
-        const dashboardContainer = document.querySelector('.dashboard-container');
-        if (toggleButton && dashboardContainer) {
-            toggleButton.addEventListener('click', () => {
-                dashboardContainer.classList.toggle('sidebar-collapsed');
-                setTimeout(() => { if (map) { google.maps.event.trigger(map, 'resize'); } }, 400);
-            });
-        }
-    });
+
+    document.addEventListener('DOMContentLoaded', loadMapScript);
     </script>
 </body>
 </html>
