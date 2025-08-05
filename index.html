@@ -227,7 +227,7 @@
     let map, infoWindow, geocoder;
     
     // Replace with your actual Google Maps API key
-    const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM";
+    const googleMapsApiKey = "YOUR_GOOGLE_MAPS_API_KEY_HERE";
     
     const backendProxyUrl = "/.netlify/functions/openaq";
     const newsProxyUrl = "/.netlify/functions/gnews";
@@ -326,8 +326,8 @@
         
         try {
             console.log('Fetching top polluted cities...');
-            // Use a simpler approach - get recent measurements from various locations
-            const response = await fetch(`${backendProxyUrl}/latest?limit=500&parameter=pm25&order_by=value&sort=desc`);
+            // OpenAQ v3: Get latest PM2.5 values (parameter ID 2)
+            const response = await fetch(`${backendProxyUrl}/parameters/2/latest?limit=500&sort=desc`);
             
             if (!response.ok) {
                 const errorText = await response.text();
@@ -348,36 +348,25 @@
             
             data.results.forEach((record, index) => {
                 try {
-                    // Extract city name from various possible fields
+                    // Extract city name from the location data
                     let cityName = null;
                     
-                    if (record.city) {
-                        cityName = record.city;
-                    } else if (record.location && typeof record.location === 'string') {
-                        cityName = record.location;
-                    } else if (record.location && record.location.name) {
-                        cityName = record.location.name;
-                    } else if (record.locationName) {
-                        cityName = record.locationName;
+                    if (record.location?.city) {
+                        cityName = record.location.city;
+                    } else if (record.location?.name) {
+                        // Extract city from location name if possible
+                        const locationName = record.location.name;
+                        // Try to extract city-like names (basic heuristic)
+                        const parts = locationName.split(/[-,\s]+/);
+                        cityName = parts[0] || locationName;
                     }
                     
-                    if (!cityName || cityName === 'N/A' || cityName === 'Unknown') {
+                    if (!cityName || cityName === 'N/A' || cityName === 'Unknown' || cityName.length < 2) {
                         return; // Skip this record
                     }
                     
                     // Extract PM2.5 value
-                    let pm25Value = null;
-                    
-                    if (record.measurements && Array.isArray(record.measurements) && record.measurements.length > 0) {
-                        const pm25Measurement = record.measurements.find(m => m.parameter === 'pm25');
-                        if (pm25Measurement && pm25Measurement.value) {
-                            pm25Value = pm25Measurement.value;
-                        } else if (record.measurements[0].value !== undefined) {
-                            pm25Value = record.measurements[0].value;
-                        }
-                    } else if (record.value !== undefined) {
-                        pm25Value = record.value;
-                    }
+                    const pm25Value = record.value;
                     
                     if (pm25Value !== null && pm25Value !== undefined && !isNaN(pm25Value) && pm25Value > 0 && pm25Value < 1000) {
                         // Clean up city name
@@ -402,7 +391,7 @@
             console.log(`Processed ${processedCount} records, found ${cityMap.size} unique cities`);
 
             if (cityMap.size === 0) {
-                // If no cities found, try a different approach or show sample data
+                // If no cities found, show sample data
                 console.log('No cities found, showing sample data structure:', data.results.slice(0, 2));
                 container.innerHTML = `
                     <div class="list-item">
@@ -479,13 +468,12 @@
         console.log(`Fetching air quality data for coordinates: ${lat}, ${lng}`);
         
         try {
-            // First try to find locations near the coordinates
+            // OpenAQ v3 API: Find locations near coordinates for PM2.5 (parameter ID 2)
             const locationParams = new URLSearchParams({
-                coordinates: `${lat},${lng}`,
-                radius: 50000, // Increase radius to 50km
-                parameter: 'pm25',
-                limit: 10,
-                order_by: 'distance'
+                coordinates: `${lng},${lat}`, // Note: lng,lat format for OpenAQ v3
+                radius: 50000, // 50km radius
+                parameters_id: 2, // PM2.5 parameter ID
+                limit: 10
             });
             
             const locationUrl = `${backendProxyUrl}/locations?${locationParams.toString()}`;
@@ -495,97 +483,65 @@
             
             if (!locationResponse.ok) {
                 console.error('Location API failed:', locationResponse.status);
-                // If locations endpoint fails, try latest endpoint directly
-                return await getLatestDataNearCoords(lat, lng);
+                throw new Error(`Location search failed: ${locationResponse.status}`);
             }
             
             const locationData = await locationResponse.json();
             console.log('Location data received:', locationData);
             
             if (!locationData.results || locationData.results.length === 0) {
-                console.log('No locations found, trying latest endpoint');
-                return await getLatestDataNearCoords(lat, lng);
+                throw new Error('No PM2.5 monitoring stations found within 50km of this location');
             }
             
-            // Try to get recent data from the nearest location
+            // Get the latest values for PM2.5 from the nearest location
             const nearestLocation = locationData.results[0];
             console.log('Using nearest location:', nearestLocation);
             
-            // Get latest measurements for this location
-            const latestParams = new URLSearchParams({
-                location_id: nearestLocation.id,
-                parameter: 'pm25',
-                limit: 1,
-                order_by: 'lastUpdated'
-            });
-            
-            const latestUrl = `${backendProxyUrl}/latest?${latestParams.toString()}`;
+            // OpenAQ v3: Get latest PM2.5 values using parameter endpoint
+            const latestUrl = `${backendProxyUrl}/parameters/2/latest?locations_id=${nearestLocation.id}&limit=1`;
             console.log('Fetching latest data from:', latestUrl);
             
             const latestResponse = await fetch(latestUrl);
             
-            if (latestResponse.ok) {
-                const latestData = await latestResponse.json();
-                console.log('Latest data received:', latestData);
-                
-                if (latestData.results && latestData.results.length > 0) {
-                    const result = latestData.results[0];
-                    if (result.measurements && result.measurements.length > 0) {
-                        return {
-                            value: result.measurements[0].value,
-                            location: nearestLocation.name || nearestLocation.location || 'Unknown Station',
-                            coordinates: nearestLocation.coordinates,
-                            distance: calculateDistance(lat, lng, nearestLocation.coordinates.latitude, nearestLocation.coordinates.longitude)
-                        };
-                    }
-                }
+            if (!latestResponse.ok) {
+                console.error('Latest data API failed:', latestResponse.status);
+                throw new Error(`Latest data fetch failed: ${latestResponse.status}`);
             }
             
-            // Fallback to latest data search
-            return await getLatestDataNearCoords(lat, lng);
+            const latestData = await latestResponse.json();
+            console.log('Latest data received:', latestData);
+            
+            if (latestData.results && latestData.results.length > 0) {
+                const result = latestData.results[0];
+                return {
+                    value: result.value,
+                    location: nearestLocation.name || 'Unknown Station',
+                    coordinates: nearestLocation.coordinates,
+                    distance: calculateDistance(lat, lng, nearestLocation.coordinates.latitude, nearestLocation.coordinates.longitude),
+                    datetime: result.datetime?.local || result.datetime?.utc || 'Unknown time'
+                };
+            }
+            
+            throw new Error('No recent PM2.5 data available from nearby stations');
             
         } catch (error) {
             console.error('Error in getAirQualityDataFromCoords:', error);
-            throw new Error('Unable to fetch air quality data for this location');
+            throw error;
         }
     }
     
-    // Fallback function to search latest data by coordinates
-    async function getLatestDataNearCoords(lat, lng) {
-        try {
-            // Search for recent measurements near the coordinates
-            const params = new URLSearchParams({
-                coordinates: `${lat},${lng}`,
-                radius: 100000, // 100km radius
-                parameter: 'pm25',
-                limit: 20,
-                order_by: 'distance'
-            });
-            
-            const url = `${backendProxyUrl}/latest?${params.toString()}`;
-            console.log('Fallback: Fetching from latest endpoint:', url);
-            
-            const response = await fetch(url);
-            
-            if (!response.ok) {
-                throw new Error(`API request failed: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            console.log('Fallback data received:', data);
-            
-            if (data.results && data.results.length > 0) {
-                // Find the first result with valid measurements
-                for (const result of data.results) {
-                    if (result.measurements && result.measurements.length > 0) {
-                        const measurement = result.measurements.find(m => m.parameter === 'pm25') || result.measurements[0];
-                        if (measurement && measurement.value !== null && measurement.value !== undefined) {
-                            return {
-                                value: measurement.value,
-                                location: result.location || 'Nearby Station',
-                                coordinates: result.coordinates,
-                                distance: result.coordinates ? 
-                                    calculateDistance(lat, lng, result.coordinates.latitude, result.coordinates.longitude) : 
+    // Helper function to calculate distance between two coordinates
+    function calculateDistance(lat1, lng1, lat2, lng2) {
+        const R = 6371; // Earth's radius in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLng = (lng2 - lng1) * Math.PI / 180;
+        const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLng/2) * Math.sin(dLng/2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        const distance = R * c;
+        return Math.round(distance * 10) / 10; // Round to 1 decimal place
+    } : 
                                     'Unknown'
                             };
                         }
