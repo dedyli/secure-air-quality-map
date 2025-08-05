@@ -23,8 +23,8 @@
         }
         .dashboard-container {
             display: flex;
+            flex-direction: row-reverse; /* <-- MOVES SIDEBAR TO THE RIGHT */
             height: 100vh;
-            transition: margin-left 0.4s ease;
         }
         .sidebar {
             width: 350px;
@@ -34,8 +34,8 @@
             flex-direction: column;
             gap: 20px;
             overflow-y: auto;
-            border-right: 1px solid var(--border-color);
-            transition: margin-left 0.4s ease;
+            border-left: 1px solid var(--border-color); /* <-- CHANGED BORDER FROM RIGHT TO LEFT */
+            transition: margin-right 0.4s ease; /* <-- CHANGED TRANSITION TO MARGIN-RIGHT */
         }
         .main-content {
             flex-grow: 1;
@@ -124,7 +124,10 @@
         .info-window-content { color: #111; }
         .loader { text-align: center; padding: 20px; color: var(--text-secondary); }
         .error-message { padding: 20px; text-align: center; background-color: #5d3434; border-radius: 8px; }
-        .dashboard-container.sidebar-collapsed .sidebar { margin-left: -391px; }
+        /* <-- UPDATED COLLAPSE STYLE FOR RIGHT SIDEBAR */
+        .dashboard-container.sidebar-collapsed .sidebar {
+            margin-right: -391px;
+        }
     </style>
 </head>
 <body>
@@ -522,7 +525,9 @@
         let contentHtml = `<div class="info-window-content"><h3>${locationName}</h3><p><strong>AQI:</strong> <span style="color: ${getColorFromClass(colorClass)}">${aqi}</span></p><p><strong>Category:</strong> ${category}</p>`;
         if (pm25Value) { contentHtml += `<p><strong>PM2.5:</strong> ${pm25Value.toFixed(1)} ${pm25Unit}</p>`; }
         if (dominantPollutant) { contentHtml += `<p><strong>Main Pollutant:</strong> ${dominantPollutant.toUpperCase()}</p>`; }
-        contentHtml += `<p><small>Source: ${source}</small></p></div>`;
+        // The following line has been removed to hide the source
+        // contentHtml += `<p><small>Source: ${source}</small></p></div>`;
+        contentHtml += `</div>`; // Close the main div
         infoWindow.setContent(contentHtml); 
         infoWindow.open(map); 
     }
