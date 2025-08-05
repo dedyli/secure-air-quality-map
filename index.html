@@ -227,7 +227,7 @@
     // --- Configuration ---
     let map, infoWindow, geocoder;
     const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; 
-    const backendProxyUrl = "/.netlify/functions/openaq/"; // FIXED: Correct proxy URL
+    const backendProxyUrl = "/.netlify/functions/openaq"; // No trailing slash
     const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f"; 
 
     // --- Initialization ---
@@ -323,30 +323,34 @@
         const container = document.getElementById('top-cities-list');
         container.innerHTML = '<div class="loader">Loading live city data...</div>';
         
-        const params = new URLSearchParams({
-            limit: 100,
-            page: 1,
-            offset: 0,
-            sort: 'desc',
-            parameters_id: 2, 
-            order_by: 'lastValue'
-        });
-        const url = `${backendProxyUrl}latest?${params.toString()}`;
+        // Using the correct v3 endpoint for latest PM2.5 values
+        const url = `${backendProxyUrl}/parameters/2/latest?limit=1000`;
 
         try {
             const response = await fetch(url);
-            if (!response.ok) throw new Error(`API Error (${response.status}): ${await response.text()}`);
-            const data = await response.json();
+            const responseText = await response.text();
+            
+            if (!response.ok) {
+                console.error('API Response:', responseText);
+                throw new Error(`API Error (${response.status}): ${responseText}`);
+            }
+            
+            const data = JSON.parse(responseText);
+            console.log('API Data:', data); // Debug log
 
             if (data.results && data.results.length > 0) {
-                const filteredResults = data.results.filter(r => r.city);
-                populateTopCitiesList(filteredResults.slice(0, 5));
+                // Sort by value and filter for valid city data
+                const sortedResults = data.results
+                    .filter(r => r.value !== null && r.locations && r.locations.city)
+                    .sort((a, b) => b.value - a.value);
+                    
+                populateTopCitiesList(sortedResults.slice(0, 5));
             } else {
                 container.innerHTML = '<div class="error-message">No live city data available.</div>';
             }
         } catch (error) {
             console.error("Error fetching top polluted cities:", error);
-            container.innerHTML = `<div class="error-message">Could not load city data. Check proxy.</div>`;
+            container.innerHTML = `<div class="error-message">Could not load city data. Error: ${error.message}</div>`;
         }
     }
 
@@ -354,65 +358,107 @@
         const params = new URLSearchParams({
             coordinates: `${lat},${lng}`,
             radius: 10000,
-            parameters_id: 2,
-            sort: 'desc',
-            order_by: 'distance'
+            parameters_id: 2,  // PM2.5
+            limit: 1
         });
-        const url = `${backendProxyUrl}latest?${params.toString()}`;
-        const response = await fetch(url);
-
-        if (!response.ok) throw new Error('Failed to fetch Air Quality data.');
+        const url = `${backendProxyUrl}/locations?${params.toString()}`;
         
-        const data = await response.json();
-        if (data.results && data.results.length > 0) {
-            const measurement = data.results[0].parameters.find(p => p.parameterId === 2);
-            if (measurement) {
-                return {
-                    value: measurement.lastValue,
-                    location: data.results[0].location,
-                    coordinates: data.results[0].coordinates
-                };
+        try {
+            const response = await fetch(url);
+            if (!response.ok) throw new Error('Failed to fetch Air Quality data.');
+            
+            const data = await response.json();
+            if (data.results && data.results.length > 0) {
+                const location = data.results[0];
+                // Get the latest measurement for this location
+                const latestUrl = `${backendProxyUrl}/locations/${location.id}/latest`;
+                const latestResponse = await fetch(latestUrl);
+                
+                if (latestResponse.ok) {
+                    const latestData = await latestResponse.json();
+                    const pm25 = latestData.results.find(r => r.parameter === 'pm25');
+                    
+                    if (pm25) {
+                        return {
+                            value: pm25.value,
+                            location: location.name || location.location,
+                            coordinates: location.coordinates
+                        };
+                    }
+                }
             }
+            throw new Error('No PM2.5 stations found near this location.');
+        } catch (error) {
+            console.error('Error fetching air quality data:', error);
+            throw error;
         }
-        throw new Error('No PM2.5 stations found near this location.');
     }
 
     async function fetchWeeklyTrendData() {
-        const dateTo = new Date();
-        const dateFrom = new Date();
-        dateFrom.setDate(dateFrom.getDate() - 7);
-        
+        // First, let's get a location with PM2.5 sensors (using Los Angeles as example)
         const params = new URLSearchParams({
-            date_from: dateFrom.toISOString(),
-            date_to: dateTo.toISOString(),
-            location_id: 1936, 
-            parameters_id: 2,  
-            limit: 500,
-            sort: 'desc'
+            city: 'Los Angeles',
+            parameters_id: 2,
+            limit: 1
         });
-        const url = `${backendProxyUrl}measurements?${params.toString()}`;
-
+        
         try {
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`API Error (${response.status}): ${await response.text()}`);
-            const data = await response.json();
-            
-            if(data.results && data.results.length > 0) {
-                const dailyData = {};
-                data.results.forEach(res => {
-                    const day = res.date.local.split('T')[0];
-                    if (!dailyData[day]) dailyData[day] = [];
-                    dailyData[day].push(res.value);
-                });
-
-                const labels = Object.keys(dailyData).sort();
-                const chartData = labels.map(day => {
-                    const values = dailyData[day];
-                    return values.reduce((a, b) => a + b, 0) / values.length;
-                });
-
-                return { labels: labels.map(l => new Date(l).toLocaleDateString('en-US', { weekday: 'short' })), data: chartData };
+            // Get a location first
+            const locResponse = await fetch(`${backendProxyUrl}/locations?${params.toString()}`);
+            if (!locResponse.ok) {
+                console.error('Failed to fetch location');
+                return { labels: [], data: [] };
             }
+            
+            const locData = await locResponse.json();
+            if (!locData.results || locData.results.length === 0) {
+                return { labels: [], data: [] };
+            }
+            
+            const locationId = locData.results[0].id;
+            
+            // Now get the sensors for this location
+            const sensorsResponse = await fetch(`${backendProxyUrl}/locations/${locationId}/sensors`);
+            if (!sensorsResponse.ok) {
+                console.error('Failed to fetch sensors');
+                return { labels: [], data: [] };
+            }
+            
+            const sensorsData = await sensorsResponse.json();
+            const pm25Sensor = sensorsData.results.find(s => s.parameter === 'pm25');
+            
+            if (!pm25Sensor) {
+                console.error('No PM2.5 sensor found');
+                return { labels: [], data: [] };
+            }
+            
+            // Get daily averages for the past 7 days
+            const dateParams = new URLSearchParams({
+                limit: 7
+            });
+            
+            const dailyResponse = await fetch(`${backendProxyUrl}/sensors/${pm25Sensor.id}/days?${dateParams.toString()}`);
+            if (!dailyResponse.ok) {
+                console.error('Failed to fetch daily data');
+                return { labels: [], data: [] };
+            }
+            
+            const dailyData = await dailyResponse.json();
+            
+            if (dailyData.results && dailyData.results.length > 0) {
+                // Sort by date and prepare chart data
+                const sortedData = dailyData.results.sort((a, b) => 
+                    new Date(a.datetime.local) - new Date(b.datetime.local)
+                );
+                
+                const labels = sortedData.map(d => 
+                    new Date(d.datetime.local).toLocaleDateString('en-US', { weekday: 'short' })
+                );
+                const data = sortedData.map(d => d.value);
+                
+                return { labels, data };
+            }
+            
             return { labels: [], data: [] };
         } catch (error) {
             console.error("Error fetching weekly trend data:", error);
@@ -429,20 +475,22 @@
         cities.forEach((city, index) => {
             const listItem = document.createElement('div');
             listItem.className = 'list-item';
-            const pm25 = city.parameters.find(p => p.parameterId === 2);
-            if (!pm25) return;
+            
+            if (!city.value || !city.locations) return;
 
             listItem.setAttribute('data-lat', city.coordinates.latitude);
             listItem.setAttribute('data-lng', city.coordinates.longitude);
-            listItem.setAttribute('data-name', city.location);
-            listItem.setAttribute('data-value', pm25.lastValue);
+            listItem.setAttribute('data-name', city.locations.name || city.locations.location);
+            listItem.setAttribute('data-value', city.value);
 
-            const colorClass = getAqiColorClass(pm25.lastValue);
-            const cityName = city.city ? `${city.location}, ${city.city}` : city.location;
+            const colorClass = getAqiColorClass(city.value);
+            const cityName = city.locations.city ? 
+                `${city.locations.name}, ${city.locations.city}` : 
+                city.locations.name;
 
             listItem.innerHTML = `
                 <span class="city-name" title="${cityName}">${index + 1}. ${cityName}</span>
-                <span class="aqi-value ${colorClass}">${pm25.lastValue.toFixed(1)}</span>
+                <span class="aqi-value ${colorClass}">${city.value.toFixed(1)}</span>
             `;
             container.appendChild(listItem);
         });
@@ -450,37 +498,44 @@
 
     async function initCharts() {
         const chartContainer = document.getElementById('global-trend-chart');
-        const { labels, data } = await fetchWeeklyTrendData();
-        const ctx = document.getElementById('aqiTrendChart').getContext('2d'); 
         
-        if (data.length === 0) {
-            chartContainer.innerHTML = `<div class="error-message">Could not load trend data.</div>`;
-            return;
-        }
-        
-        new Chart(ctx, { 
-            type: 'line', 
-            data: { 
-                labels: labels, 
-                datasets: [{ 
-                    label: 'Average PM2.5 (Los Angeles)', 
-                    data: data, 
-                    borderColor: '#4C8BF5', 
-                    backgroundColor: 'rgba(76, 139, 245, 0.2)', 
-                    fill: true, 
-                    tension: 0.4 
-                }] 
-            }, 
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                scales: { 
-                    y: { beginAtZero: false, ticks: { color: '#EAEAEA' }, grid: { color: 'rgba(234, 234, 234, 0.1)' } }, 
-                    x: { ticks: { color: '#EAEAEA' }, grid: { color: 'rgba(234, 234, 234, 0.1)' } } 
+        try {
+            const { labels, data } = await fetchWeeklyTrendData();
+            
+            if (data.length === 0) {
+                chartContainer.innerHTML = `<div class="error-message">Trend data temporarily unavailable. Try selecting a city from the list above.</div>`;
+                return;
+            }
+            
+            const ctx = document.getElementById('aqiTrendChart').getContext('2d'); 
+            
+            new Chart(ctx, { 
+                type: 'line', 
+                data: { 
+                    labels: labels, 
+                    datasets: [{ 
+                        label: 'Average PM2.5 (Los Angeles)', 
+                        data: data, 
+                        borderColor: '#4C8BF5', 
+                        backgroundColor: 'rgba(76, 139, 245, 0.2)', 
+                        fill: true, 
+                        tension: 0.4 
+                    }] 
                 }, 
-                plugins: { legend: { display: false } } 
-            } 
-        }); 
+                options: { 
+                    responsive: true, 
+                    maintainAspectRatio: false, 
+                    scales: { 
+                        y: { beginAtZero: false, ticks: { color: '#EAEAEA' }, grid: { color: 'rgba(234, 234, 234, 0.1)' } }, 
+                        x: { ticks: { color: '#EAEAEA' }, grid: { color: 'rgba(234, 234, 234, 0.1)' } } 
+                    }, 
+                    plugins: { legend: { display: false } } 
+                } 
+            }); 
+        } catch (error) {
+            console.error('Chart initialization error:', error);
+            chartContainer.innerHTML = `<div class="error-message">Could not load trend data.</div>`;
+        }
     }
 
     function handleCityClick(event) {
