@@ -30,21 +30,21 @@
         return 'aqi-unhealthy';
     }
 
-    // Fetch Top 5 Polluted Cities using OpenAQ v3 /latest endpoint
+    // Fetch Top 5 Polluted Cities using OpenAQ v3 parameters/2/latest endpoint
     async function fetchTopPollutedCities() {
         const container = document.getElementById('top-cities-list');
         container.innerHTML = '<div class="loader">Loading live city data...</div>';
         try {
-            // Use /latest for PM2.5 to ensure 'results' is always defined
+            // Use parameters/2/latest for PM2.5 readings
             const resp = await fetch(
-              `${backendProxyUrl}/latest?parameter=pm25&limit=1000&sort=desc&order_by=lastUpdated`
+              `${backendProxyUrl}/parameters/2/latest?limit=1000`
             );
             if (!resp.ok) throw new Error(`API Error (${resp.status})`);
 
             const data = await resp.json();
             const results = data.results || [];
             console.log('Fetched records:', results.length, results[0]);
-            
+
             // Group by city, take max value
             const cityMax = results.reduce((acc, rec) => {
                 const city = rec.city || rec.location;
