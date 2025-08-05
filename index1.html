@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Air Quality Monitoring Dashboard</title>
+    <!-- styles omitted for brevity -->
+</head>
+<body>
+    <!-- header and layout omitted for brevity -->
+
+    <aside class="sidebar">
+        <div class="widget">
+            <h3 class="widget-title">Top 5 Most Polluted Cities</h3>
+            <div id="top-cities-list" class="widget-content">
+                <div class="loader">Loading live city data...</div>
+            </div>
+        </div>
+        <!-- other widgets -->
+    </aside>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    const backendProxyUrl = "/.netlify/functions/openaq";
+
+    function getAqiColorClass(value) {
+        if (value <= 12) return 'aqi-good';
+        if (value <= 35.4) return 'aqi-moderate';
+        if (value <= 55.4) return 'aqi-sensitive';
+        return 'aqi-unhealthy';
+    }
+
+    // Fetch Top 5 Cities using OpenAQ v3 parameters/latest
+    async function fetchTopPollutedCities() {
+        const container = document.getElementById('top-cities-list');
+        container.innerHTML = '<div class="loader">Loading live city data...</div>';
+        try {
+            const resp = await fetch(`${backendProxyUrl}/parameters/2/latest?limit=1000`);
+            if (!resp.ok) throw new Error(`API Error (${resp.status})`);
+            const { results } = await resp.json();
+
+            // Group by city, take max value
+            const cityMax = results.reduce((acc, rec) => {
+                const city = rec.city || rec.location;
+                acc[city] = Math.max(acc[city] || 0, rec.value);
+                return acc;
+            }, {});
+
+            // Sort and take top 5
+            const top5 = Object.entries(cityMax)
+                .map(([city, pm25]) => ({ city, pm25 }))
+                .sort((a, b) => b.pm25 - a.pm25)
+                .slice(0, 5);
+
+            container.innerHTML = '';
+            top5.forEach((item, idx) => {
+                const listItem = document.createElement('div');
+                listItem.className = 'list-item';
+                listItem.innerHTML = 
+                    `<span class="city-name">${idx + 1}. ${item.city}</span>` +
+                    `<span class="aqi-value ${getAqiColorClass(item.pm25)}">${item.pm25.toFixed(1)}</span>`;
+                container.appendChild(listItem);
+            });
+        } catch (error) {
+            console.error('Error loading top 5 cities:', error);
+            container.innerHTML = `<div class="error-message">Could not load city data.</div>`;
+        }
+    }
+
+    // Initialize dashboard
+    function initDashboard() {
+        fetchTopPollutedCities();
+        // other init calls...
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        // load Google Maps, init charts, news, etc.
+        initDashboard();
+    });
+    </script>
+</body>
+</html>
