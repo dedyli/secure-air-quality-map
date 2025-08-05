@@ -30,15 +30,21 @@
         return 'aqi-unhealthy';
     }
 
-    // Fetch Top 5 Cities using OpenAQ v3 parameters/latest
+    // Fetch Top 5 Polluted Cities using OpenAQ v3 /latest endpoint
     async function fetchTopPollutedCities() {
         const container = document.getElementById('top-cities-list');
         container.innerHTML = '<div class="loader">Loading live city data...</div>';
         try {
-            const resp = await fetch(`${backendProxyUrl}/parameters/2/latest?limit=1000`);
+            // Use /latest for PM2.5 to ensure 'results' is always defined
+            const resp = await fetch(
+              `${backendProxyUrl}/latest?parameter=pm25&limit=1000&sort=desc&order_by=lastUpdated`
+            );
             if (!resp.ok) throw new Error(`API Error (${resp.status})`);
-            const { results } = await resp.json();
 
+            const data = await resp.json();
+            const results = data.results || [];
+            console.log('Fetched records:', results.length, results[0]);
+            
             // Group by city, take max value
             const cityMax = results.reduce((acc, rec) => {
                 const city = rec.city || rec.location;
@@ -58,11 +64,11 @@
                 listItem.className = 'list-item';
                 listItem.innerHTML = 
                     `<span class="city-name">${idx + 1}. ${item.city}</span>` +
-                    `<span class="aqi-value ${getAqiColorClass(item.pm25)}">${item.pm25.toFixed(1)}</span>`;
+                    `<span class="aqi-value ${getAqiColorClass(item.pm25)}">${item.pm25.toFixed(1)} µg/m³</span>`;
                 container.appendChild(listItem);
             });
         } catch (error) {
-            console.error('Error loading top 5 cities:', error);
+            console.error('Error loading top 5 cities:', error, error.stack);
             container.innerHTML = `<div class="error-message">Could not load city data.</div>`;
         }
     }
@@ -74,7 +80,6 @@
     }
 
     document.addEventListener('DOMContentLoaded', () => {
-        // load Google Maps, init charts, news, etc.
         initDashboard();
     });
     </script>
