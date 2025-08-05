@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Global Air Quality Monitoring Dashboard</title>
-    <link rel="stylesheet" href="dashboard-style.css">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
     <style>
         body {
@@ -87,11 +86,14 @@
             margin: 0 -12px;
             border-radius: 4px;
             cursor: pointer;
-            transition: background-color 0.2s ease-in-out;
+            transition: background-color: 0.2s ease-in-out;
         }
         .list-item:hover { background-color: #3a414a; }
         .list-item .city-name {
             flex-grow: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         .list-item .aqi-value {
             margin-left: 15px;
@@ -118,6 +120,36 @@
         #sidebar-toggle-btn:hover { background-color: rgba(76, 139, 245, 1); }
 
         .dashboard-container.sidebar-collapsed { grid-template-columns: 1fr 0; gap: 0; }
+        .dashboard-container.sidebar-collapsed .sidebar {
+            display: none;
+        }
+
+        #map {
+            width: 100%;
+            height: calc(100% - 60px); /* Adjust for search bar */
+            border-radius: 8px;
+        }
+
+        #search-container {
+            display: flex;
+            margin-bottom: 15px;
+        }
+        #address-input {
+            flex-grow: 1;
+            padding: 10px;
+            border: 1px solid #444;
+            background-color: #2a2a2e;
+            color: #eaeaea;
+            border-radius: 5px 0 0 5px;
+        }
+        #search-button {
+            padding: 10px 15px;
+            border: none;
+            background-color: #4C8BF5;
+            color: white;
+            cursor: pointer;
+            border-radius: 0 5px 5px 0;
+        }
 
         #legend-map {
             position: absolute; bottom: 30px; right: 10px; background-color: rgba(30, 30, 30, 0.85);
@@ -129,14 +161,20 @@
         #legend-map div:last-child { margin-bottom: 0; }
         #legend-map span { width: 14px; height: 14px; border-radius: 50%; margin-right: 10px; display: inline-block; border: 1px solid #555; }
 
-        .error-message {
+        .error-message, .loader {
             color: #FF7E00;
+            padding: 10px;
+            text-align: center;
         }
+        .info-window-content { color: #1A1A1A; }
+        .news-item a { color: #8ab4f8; text-decoration: none; }
+        .news-item a:hover { text-decoration: underline; }
+        .news-source { display: block; font-size: 12px; color: #999; margin-top: 4px; }
     </style>
 </head>
 <body>
     <header class="dashboard-header">
-        <img src="Tsinghua_University_logo_and_wordmark_in_Chinese_and_English_characters.svg.png" alt="Tsinghua University Logo" id="header-logo">
+        <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/a/a3/Tsinghua_University_logo.svg/240px-Tsinghua_University_logo.svg.png" alt="Tsinghua University Logo" id="header-logo" onerror="this.style.display='none'">
         <div class="header-text">
             <h1>Global Air Quality Monitoring Dashboard</h1>
             <p>Group 62 IEDE Research Topic: AI-Driven Environmental Monitoring for a Green Economy</p>
@@ -152,7 +190,7 @@
             </div>
             <div id="map"></div>
             <div id="legend-map">
-                <h4>AQI Legend (PM2.5 µg/m³)</h4>
+                <h4>PM2.5 Legend (µg/m³)</h4>
                 <div><span style="background-color: #00E400;"></span> 0-12: Good</div>
                 <div><span style="background-color: #FFFF00;"></span> 13-35: Moderate</div>
                 <div><span style="background-color: #FF7E00;"></span> 36-55: Unhealthy for Sensitive</div>
@@ -185,111 +223,132 @@
     </div>
     
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_Maps_API_KEY&libraries=visualization,places&callback=initMap" async defer></script>
-
     <script>
+    // --- Configuration ---
     let map, infoWindow, geocoder;
+    const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM"; 
     const openAqApiKey = "9f408ed0e450f2c243ab27af6c475b1b8a4f0b6d776a82b55781cb0ab5190a89";
     const openAqApiUrl = "https://api.openaq.org/v2/";
+    const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f"; // Replace with your GNews API key if needed
 
-    async function initMap() {
+    // --- Initialization ---
+    function loadGoogleMapsScript() {
+        if (!googleMapsApiKey || googleMapsApiKey === "YOUR_GOOGLE_MAPS_API_KEY") {
+            document.getElementById('map').innerHTML = '<div class="error-message"><strong>Error:</strong> A valid Google Maps API key is required.</div>';
+            return; 
+        }
+
+        const script = document.createElement('script');
+        script.src = `https://maps.googleapis.com/maps/api/js?key=${googleMapsApiKey}&libraries=visualization,places&callback=initMap`;
+        script.async = true;
+        script.defer = true;
+        script.onerror = () => {
+            document.getElementById('map').innerHTML = '<div class="error-message">Error: Could not load Google Maps. Please check your API key and network connection.</div>';
+        };
+        document.head.appendChild(script);
+    }
+
+    window.initMap = function() {
         map = new google.maps.Map(document.getElementById('map'), {
-            center: { lat: 20, lng: 0 }, zoom: 3, mapTypeId: 'satellite',
+            center: { lat: 20, lng: 0 },
+            zoom: 3,
+            mapTypeId: 'roadmap',
             styles: [
-                { elementType: 'geometry', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.stroke', stylers: [{ color: '#242f3e' }] }, { elementType: 'labels.text.fill', stylers: [{ color: '#746855' }] },
-                { featureType: 'administrative.locality', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] }, { featureType: 'poi', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-                { featureType: 'poi.park', elementType: 'geometry', stylers: [{ color: '#263c3f' }] }, { featureType: 'poi.park', elementType: 'labels.text.fill', stylers: [{ color: '#6b9a76' }] },
-                { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#38414e' }] }, { featureType: 'road', elementType: 'geometry.stroke', stylers: [{ color: '#212a37' }] },
-                { featureType: 'road', elementType: 'labels.text.fill', stylers: [{ color: '#9ca5b3' }] }, { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#746855' }] },
-                { featureType: 'road.highway', elementType: 'geometry.stroke', stylers: [{ color: '#1f2835' }] }, { featureType: 'road.highway', elementType: 'labels.text.fill', stylers: [{ color: '#f3d19c' }] },
-                { featureType: 'transit', elementType: 'geometry', stylers: [{ color: '#2f3948' }] }, { featureType: 'transit.station', elementType: 'labels.text.fill', stylers: [{ color: '#d59563' }] },
-                { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#17263c' }] }, { featureType: 'water', elementType: 'labels.text.fill', stylers: [{ color: '#515c6d' }] },
-                { featureType: 'water', elementType: 'labels.text.stroke', stylers: [{ color: '#17263c' }] }
-            ]
+                { elementType: "geometry", stylers: [{ color: "#242f3e" }] },
+                { elementType: "labels.text.stroke", stylers: [{ color: "#242f3e" }] },
+                { elementType: "labels.text.fill", stylers: [{ color: "#746855" }] },
+                { featureType: "administrative.locality", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+                { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+                { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#263c3f" }] },
+                { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#6b9a76" }] },
+                { featureType: "road", elementType: "geometry", stylers: [{ color: "#38414e" }] },
+                { featureType: "road", elementType: "geometry.stroke", stylers: [{ color: "#212a37" }] },
+                { featureType: "road", elementType: "labels.text.fill", stylers: [{ color: "#9ca5b3" }] },
+                { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#746855" }] },
+                { featureType: "road.highway", elementType: "geometry.stroke", stylers: [{ color: "#1f2835" }] },
+                { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#f3d19c" }] },
+                { featureType: "transit", elementType: "geometry", stylers: [{ color: "#2f3948" }] },
+                { featureType: "transit.station", elementType: "labels.text.fill", stylers: [{ color: "#d59563" }] },
+                { featureType: "water", elementType: "geometry", stylers: [{ color: "#17263c" }] },
+                { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#515c6d" }] },
+                { featureType: "water", elementType: "labels.text.stroke", stylers: [{ color: "#17263c" }] },
+            ],
         });
         infoWindow = new google.maps.InfoWindow();
         geocoder = new google.maps.Geocoder();
 
+        initDashboard();
+        setupEventListeners();
+    };
+
+    function initDashboard() {
+        fetchTopPollutedCities();
+        initCharts();
+        getNewsData();
+    }
+    
+    function setupEventListeners() {
         map.addListener('click', async (mapsMouseEvent) => {
             const latLng = mapsMouseEvent.latLng;
-            infoWindow.setPosition(latLng); infoWindow.setContent('Fetching location data...'); infoWindow.open(map);
+            infoWindow.setPosition(latLng);
+            infoWindow.setContent('<div class="info-window-content">Fetching location data...</div>');
+            infoWindow.open(map);
             try {
-                const airQualityData = await getAirQualityData(latLng.lat(), latLng.lng());
+                const airQualityData = await getAirQualityDataFromCoords(latLng.lat(), latLng.lng());
                 const locationName = await getLocationName(latLng);
                 displayAirQualityInfo(airQualityData, locationName, latLng);
             } catch (error) {
-                console.error('Detailed Error:', error); infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> ${error.message}</div>`);
+                console.error('Map Click Error:', error);
+                infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> ${error.message}</div>`);
             }
         });
+
         const searchButton = document.getElementById('search-button');
         const addressInput = document.getElementById('address-input');
         searchButton.addEventListener('click', () => geocodeAddress(addressInput.value));
         addressInput.addEventListener('keyup', (event) => { if (event.key === 'Enter') geocodeAddress(addressInput.value); });
         
-        initDashboard();
-    }
-    
-    async function initDashboard() {
-        initCharts();
-        getNewsData();
-        fetchTopPollutedCities();
         document.getElementById('top-cities-list').addEventListener('click', handleCityClick);
+
+        const toggleButton = document.getElementById('sidebar-toggle-btn');
+        const dashboardContainer = document.querySelector('.dashboard-container');
+        toggleButton.addEventListener('click', () => {
+            dashboardContainer.classList.toggle('sidebar-collapsed');
+            setTimeout(() => { if (map) { google.maps.event.trigger(map, 'resize'); } }, 400);
+        });
     }
-    
-    // --- NEW: Function to get top polluted cities from OpenAQ ---
+
+    // --- OpenAQ API Functions ---
+
     async function fetchTopPollutedCities() {
-        const topCitiesListContainer = document.getElementById('top-cities-list');
-        topCitiesListContainer.innerHTML = '<div class="loader">Loading live city data...</div>';
+        const container = document.getElementById('top-cities-list');
+        container.innerHTML = '<div class="loader">Loading live city data...</div>';
         
         const url = `${openAqApiUrl}latest?limit=100&page=1&offset=0&sort=desc&parameter=pm25&order_by=value`;
 
         try {
-            const response = await fetch(url, { headers: { 'X-API-Key': openAqApiKey } });
-            if (!response.ok) throw new Error(`OpenAQ API Error: ${response.statusText}`);
+            const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', 'X-API-Key': openAqApiKey } });
+            if (!response.ok) throw new Error(`OpenAQ API Error (${response.status}): ${response.statusText}`);
             const data = await response.json();
 
             if (data.results && data.results.length > 0) {
-                populateTopCitiesList(data.results.slice(0, 5));
+                const filteredResults = data.results.filter(r => r.city);
+                populateTopCitiesList(filteredResults.slice(0, 5));
             } else {
-                topCitiesListContainer.innerHTML = '<div class="error-message">No live city data available from OpenAQ.</div>';
+                container.innerHTML = '<div class="error-message">No live city data available from OpenAQ.</div>';
             }
         } catch (error) {
             console.error("Error fetching top polluted cities:", error);
-            topCitiesListContainer.innerHTML = `<div class="error-message">Error: ${error.message}</div>`;
+            container.innerHTML = `<div class="error-message">Could not load city data. ${error.message}</div>`;
         }
     }
-    
-    function populateTopCitiesList(cities) {
-        const listContainer = document.getElementById('top-cities-list');
-        listContainer.innerHTML = ''; 
 
-        cities.forEach((city, index) => {
-            const listItem = document.createElement('div');
-            listItem.className = 'list-item';
-            listItem.setAttribute('data-lat', city.coordinates.latitude);
-            listItem.setAttribute('data-lng', city.coordinates.longitude);
-            listItem.setAttribute('data-name', city.location);
-            listItem.setAttribute('data-aqi', city.value);
+    async function getAirQualityDataFromCoords(lat, lng) {
+        const url = `${openAqApiUrl}latest?coordinates=${lat},${lng}&radius=10000&parameter=pm25&sort=desc&order_by=distance`;
+        const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', 'X-API-Key': openAqApiKey } });
 
-            const colorClass = getAqiColorClass(city.value);
-            const cityName = city.city ? `${city.location}, ${city.city}` : city.location;
-
-            listItem.innerHTML = `
-                <span class="city-name">${index + 1}. ${cityName}</span>
-                <span class="aqi-value ${colorClass}">${city.value.toFixed(2)}</span>
-            `;
-            listContainer.appendChild(listItem);
-        });
-    }
-    
-    // --- MODIFIED: Use OpenAQ API for clicks as well ---
-    async function getAirQualityData(lat, lng) {
-        const url = `${openAqApiUrl}latest?coordinates=${lat},${lng}&radius=10000&parameter=pm25`;
-        const response = await fetch(url, { headers: { 'X-API-Key': openAqApiKey } });
-
-        if (!response.ok) {
-            throw new Error('Failed to fetch Air Quality data from OpenAQ.');
-        }
+        if (!response.ok) throw new Error('Failed to fetch Air Quality data from OpenAQ.');
+        
         const data = await response.json();
         if (data.results && data.results.length > 0) {
             return data.results[0];
@@ -298,39 +357,6 @@
         }
     }
 
-    async function geocodeAddress(address) { if (!address) { alert('Please enter a location to search.'); return; } geocoder.geocode({ 'address': address }, async (results, status) => { if (status === 'OK') { const location = results[0].geometry.location; map.setCenter(location); map.setZoom(11); try { const airQualityData = await getAirQualityData(location.lat(), location.lng()); displayAirQualityInfo(airQualityData, results[0].formatted_address, location); } catch (error) { console.error('Geocode Error:', error); infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> ${error.message}</div>`); infoWindow.open(map); } } else { alert('Geocode was not successful for the following reason: ' + status); } }); }
-    async function getLocationName(latLng) { return new Promise((resolve, reject) => { geocoder.geocode({ 'location': latLng }, (results, status) => { if (status === 'OK') { if (results[0]) { resolve(results[0].formatted_address); } else { resolve("Location name not found"); } } else { console.error("Geocoder failed due to: " + status); resolve("Location name not found"); } }); }); }
-    
-    // Note: This color coding is based on the US EPA AQI standard for PM2.5 (µg/m³).
-    function getAqiColorClass(value) {
-        if (value <= 12) return 'aqi-good';
-        if (value <= 35.4) return 'aqi-moderate';
-        if (value <= 55.4) return 'aqi-sensitive';
-        return 'aqi-unhealthy';
-    }
-
-    function getStandardCategoryFromAqi(value) {
-        if (value <= 12) return 'Good';
-        if (value <= 35.4) return 'Moderate';
-        if (value <= 55.4) return 'Unhealthy for Sensitive Groups';
-        if (value <= 150.4) return 'Unhealthy';
-        if (value <= 250.4) return 'Very Unhealthy';
-        return 'Hazardous';
-    }
-
-    function displayAirQualityInfo(data, locationName, position) { 
-        infoWindow.setPosition(position); 
-        if (!data || !data.value) { 
-            infoWindow.setContent(`<div class="info-window-content"><strong>${locationName}</strong><br>No air quality data available.</div>`); 
-            infoWindow.open(map); return; 
-        } 
-        const { value, parameter } = data; 
-        const standardCategory = getStandardCategoryFromAqi(value); 
-        infoWindow.setContent(`<div class="info-window-content"><h3>${locationName}</h3><p><strong>PM2.5:</strong> ${value.toFixed(2)} µg/m³</p><p><strong>Category:</strong> ${standardCategory}</p><p><strong>Source:</strong> ${data.location}</p></div>`); 
-        infoWindow.open(map); 
-    }
-
-    // --- NEW: Fetch 7-day trend from OpenAQ ---
     async function fetchWeeklyTrendData() {
         const dateTo = new Date();
         const dateFrom = new Date();
@@ -338,28 +364,16 @@
 
         const formatDate = (date) => date.toISOString().split('T')[0];
         
-        const url = `${openAqApiUrl}averages?spatial=country&country=US&parameter=pm25&date_from=${formatDate(dateFrom)}&date_to=${formatDate(dateTo)}&limit=100`;
+        const url = `${openAqApiUrl}averages?spatial=country&country=US&parameter=pm25&date_from=${formatDate(dateFrom)}&date_to=${formatDate(dateTo)}&limit=7&sort=asc&order_by=day`;
 
         try {
-            const response = await fetch(url, { headers: { 'X-API-Key': openAqApiKey } });
-            if (!response.ok) throw new Error(`OpenAQ API Error: ${response.statusText}`);
+            const response = await fetch(url, { mode: 'cors', headers: { 'Accept': 'application/json', 'X-API-Key': openAqApiKey } });
+            if (!response.ok) throw new Error(`OpenAQ API Error (${response.status}): ${response.statusText}`);
             const data = await response.json();
             
             if(data.results && data.results.length > 0) {
-                // Assuming the API returns daily averages for the date range
-                const dailyAverages = data.results.reduce((acc, curr) => {
-                    const day = curr.day;
-                    if (!acc[day]) {
-                        acc[day] = { sum: 0, count: 0 };
-                    }
-                    acc[day].sum += curr.average;
-                    acc[day].count++;
-                    return acc;
-                }, {});
-
-                const labels = Object.keys(dailyAverages).sort();
-                const chartData = labels.map(day => dailyAverages[day].sum / dailyAverages[day].count);
-
+                const labels = data.results.map(d => new Date(d.day).toLocaleDateString('en-US', { weekday: 'short' }));
+                const chartData = data.results.map(d => d.average);
                 return { labels, data: chartData };
             }
             return { labels: [], data: [] };
@@ -369,17 +383,48 @@
         }
     }
 
+    // --- UI Population and Handling ---
+
+    function populateTopCitiesList(cities) {
+        const container = document.getElementById('top-cities-list');
+        container.innerHTML = ''; 
+
+        cities.forEach((city, index) => {
+            const listItem = document.createElement('div');
+            listItem.className = 'list-item';
+            listItem.setAttribute('data-lat', city.coordinates.latitude);
+            listItem.setAttribute('data-lng', city.coordinates.longitude);
+            listItem.setAttribute('data-name', city.location);
+            listItem.setAttribute('data-value', city.measurements[0].value);
+
+            const colorClass = getAqiColorClass(city.measurements[0].value);
+            const cityName = city.city ? `${city.location}, ${city.city}` : city.location;
+
+            listItem.innerHTML = `
+                <span class="city-name" title="${cityName}">${index + 1}. ${cityName}</span>
+                <span class="aqi-value ${colorClass}">${city.measurements[0].value.toFixed(1)}</span>
+            `;
+            container.appendChild(listItem);
+        });
+    }
+
     async function initCharts() {
+        const chartContainer = document.getElementById('global-trend-chart');
         const { labels, data } = await fetchWeeklyTrendData();
         const ctx = document.getElementById('aqiTrendChart').getContext('2d'); 
+        
+        if (data.length === 0) {
+            chartContainer.innerHTML = `<div class="error-message">Could not load trend data.</div>`;
+            return;
+        }
         
         new Chart(ctx, { 
             type: 'line', 
             data: { 
-                labels: labels.length > 0 ? labels : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'], 
+                labels: labels, 
                 datasets: [{ 
-                    label: 'Global Average PM2.5', 
-                    data: data.length > 0 ? data : [], 
+                    label: 'Average PM2.5 (US)', 
+                    data: data, 
                     borderColor: '#4C8BF5', 
                     backgroundColor: 'rgba(76, 139, 245, 0.2)', 
                     fill: true, 
@@ -389,7 +434,10 @@
             options: { 
                 responsive: true, 
                 maintainAspectRatio: false, 
-                scales: { y: { beginAtZero: false, ticks: { color: '#EAEAEA' } }, x: { ticks: { color: '#EAEAEA' } } }, 
+                scales: { 
+                    y: { beginAtZero: false, ticks: { color: '#EAEAEA' }, grid: { color: 'rgba(234, 234, 234, 0.1)' } }, 
+                    x: { ticks: { color: '#EAEAEA' }, grid: { color: 'rgba(234, 234, 234, 0.1)' } } 
+                }, 
                 plugins: { legend: { display: false } } 
             } 
         }); 
@@ -398,38 +446,106 @@
     function handleCityClick(event) {
         const cityItem = event.target.closest('.list-item');
         if (!cityItem) return;
+
         const lat = parseFloat(cityItem.dataset.lat);
         const lng = parseFloat(cityItem.dataset.lng);
         const name = cityItem.dataset.name;
-        const aqi = parseFloat(cityItem.dataset.aqi);
+        const value = parseFloat(cityItem.dataset.value);
         const location = new google.maps.LatLng(lat, lng);
+
         map.setCenter(location);
         map.setZoom(11);
+
         const airQualityData = {
-            value: aqi,
+            value: value,
             parameter: 'pm25',
             location: name
         };
         displayAirQualityInfo(airQualityData, name, location);
     }
 
+    function displayAirQualityInfo(data, locationName, position) { 
+        infoWindow.setPosition(position); 
+        if (!data || data.value === undefined) { 
+            infoWindow.setContent(`<div class="info-window-content"><strong>${locationName}</strong><br>No air quality data available.</div>`); 
+            infoWindow.open(map); 
+            return; 
+        } 
+        const { value } = data; 
+        const standardCategory = getStandardCategoryFromValue(value); 
+        infoWindow.setContent(`<div class="info-window-content"><h3>${locationName}</h3><p><strong>PM2.5:</strong> ${value.toFixed(2)} µg/m³</p><p><strong>Category:</strong> ${standardCategory}</p><p><strong>Source Station:</strong> ${data.location}</p></div>`); 
+        infoWindow.open(map); 
+    }
+
+    // --- Utility Functions ---
+
+    function getLocationName(latLng) {
+        return new Promise((resolve) => {
+            geocoder.geocode({ 'location': latLng }, (results, status) => {
+                if (status === 'OK' && results[0]) {
+                    resolve(results[0].formatted_address);
+                } else {
+                    console.error("Geocoder failed due to: " + status);
+                    resolve("Location name not found");
+                }
+            });
+        });
+    }
+
+    async function geocodeAddress(address) {
+        if (!address) { alert('Please enter a location to search.'); return; }
+        geocoder.geocode({ 'address': address }, async (results, status) => {
+            if (status === 'OK') {
+                const location = results[0].geometry.location;
+                map.setCenter(location);
+                map.setZoom(11);
+                try {
+                    const airQualityData = await getAirQualityDataFromCoords(location.lat(), location.lng());
+                    displayAirQualityInfo(airQualityData, results[0].formatted_address, location);
+                } catch (error) {
+                    console.error('Geocode Error:', error);
+                    infoWindow.setContent(`<div class="info-window-content"><strong>Error:</strong> ${error.message}</div>`);
+                    infoWindow.open(map);
+                }
+            } else {
+                alert('Geocode was not successful for the following reason: ' + status);
+            }
+        });
+    }
+    
+    function getAqiColorClass(value) {
+        if (value <= 12) return 'aqi-good';
+        if (value <= 35.4) return 'aqi-moderate';
+        if (value <= 55.4) return 'aqi-sensitive';
+        return 'aqi-unhealthy';
+    }
+
+    function getStandardCategoryFromValue(value) {
+        if (value <= 12) return 'Good';
+        if (value <= 35.4) return 'Moderate';
+        if (value <= 55.4) return 'Unhealthy for Sensitive Groups';
+        if (value <= 150.4) return 'Unhealthy';
+        if (value <= 250.4) return 'Very Unhealthy';
+        return 'Hazardous';
+    }
+
+    // --- News Feed Functions ---
     async function getNewsData() {
-        const newsApiKey = "eb6e1360b30c6a7f876690a5ef785d0f"; // Replace with your GNews API key if needed
+        const newsListContainer = document.getElementById('news-list');
         const query = encodeURIComponent('"air pollution" OR "air quality"');
         const newsUrl = `https://gnews.io/api/v4/search?q=${query}&lang=en&max=10&apikey=${newsApiKey}`;
-        const newsListContainer = document.getElementById('news-list');
+        
         try {
             const response = await fetch(newsUrl);
             if (!response.ok) {
-                const err = new Error(`HTTP error! Status: ${response.status}`);
-                err.status = response.status;
-                throw err;
+                const errData = await response.json();
+                throw new Error(`GNews API Error: ${errData.errors[0]}`);
             }
             const data = await response.json();
             populateNewsList(data.articles);
         } catch (error) {
             console.error("Could not fetch news:", error);
-            if (error.status === 401) { newsListContainer.innerHTML = `<div class="error-message">News feed error: Invalid API Key.</div>`; } else if (error.status === 403) { newsListContainer.innerHTML = `<div class="error-message">News feed error: Access denied.</div>`; } else { newsListContainer.innerHTML = `<div class="error-message">Could not load news feed.</div>`; }
+            newsListContainer.innerHTML = `<div class="error-message">Could not load news feed.</div>`;
         }
     }
 
@@ -437,14 +553,13 @@
         const newsListContainer = document.getElementById('news-list');
         newsListContainer.innerHTML = '';
         if (!articles || articles.length === 0) {
-            newsListContainer.innerHTML = 'No recent news articles found.';
+            newsListContainer.innerHTML = '<div class="error-message">No recent news found.</div>';
             return;
         }
         articles.forEach(article => {
             const newsItem = document.createElement('div');
             newsItem.className = 'news-item';
-            const publishedDate = new Date(article.publishedAt);
-            const timeAgo = getTimeAgo(publishedDate);
+            const timeAgo = getTimeAgo(new Date(article.publishedAt));
             newsItem.innerHTML = `<a href="${article.url}" target="_blank" rel="noopener noreferrer">${article.title}</a><span class="news-source">${article.source.name} &middot; ${timeAgo}</span>`;
             newsListContainer.appendChild(newsItem);
         });
@@ -452,29 +567,16 @@
 
     function getTimeAgo(date) {
         const seconds = Math.floor((new Date() - date) / 1000);
-        let interval = seconds / 31536000;
-        if (interval > 1) return Math.floor(interval) + " years ago";
-        interval = seconds / 2592000;
-        if (interval > 1) return Math.floor(interval) + " months ago";
-        interval = seconds / 86400;
-        if (interval > 1) return Math.floor(interval) + " days ago";
-        interval = seconds / 3600;
-        if (interval > 1) return Math.floor(interval) + " hours ago";
-        interval = seconds / 60;
-        if (interval > 1) return Math.floor(interval) + " minutes ago";
+        let interval = seconds / 31536000; if (interval > 1) return Math.floor(interval) + " years ago";
+        interval = seconds / 2592000; if (interval > 1) return Math.floor(interval) + " months ago";
+        interval = seconds / 86400; if (interval > 1) return Math.floor(interval) + " days ago";
+        interval = seconds / 3600; if (interval > 1) return Math.floor(interval) + " hours ago";
+        interval = seconds / 60; if (interval > 1) return Math.floor(interval) + " minutes ago";
         return Math.floor(seconds) + " seconds ago";
     }
     
-    document.addEventListener('DOMContentLoaded', () => {
-        const toggleButton = document.getElementById('sidebar-toggle-btn');
-        const dashboardContainer = document.querySelector('.dashboard-container');
-        if (toggleButton && dashboardContainer) {
-            toggleButton.addEventListener('click', () => {
-                dashboardContainer.classList.toggle('sidebar-collapsed');
-                setTimeout(() => { if (map) { google.maps.event.trigger(map, 'resize'); } }, 400);
-            });
-        }
-    });
+    // --- Initial Load ---
+    document.addEventListener('DOMContentLoaded', loadGoogleMapsScript);
     </script>
 </body>
 </html>
