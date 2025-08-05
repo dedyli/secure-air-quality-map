@@ -12,17 +12,23 @@ router.use((req, res, next) => {
     'Access-Control-Allow-Methods': 'GET,OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
   });
-  if (req.method === 'OPTIONS') {
-    return res.status(204).end();
-  }
+  if (req.method === 'OPTIONS') return res.status(204).end();
   next();
 });
 
-// Proxy all GET requests to OpenAQ V3
+// Proxy all GET requests to OpenAQ V3, stripping Netlify function prefix
 router.get('/*', async (req, res) => {
-  const endpointPath = req.params[0] || '';
+  // Determine the API path after the function mount
+  const rawPath = req.path; // e.g. '/.netlify/functions/openaq/parameters/2/latest'
+  const prefix = '/.netlify/functions/openaq';
+  // Remove the function prefix if present
+  let endpoint = rawPath.startsWith(prefix)
+    ? rawPath.slice(prefix.length)
+    : rawPath;
+  endpoint = endpoint.replace(/^\/+/, '');
+
   const queryString = req._parsedUrl.search || '';
-  const targetUrl = `https://api.openaq.org/v3/${endpointPath}${queryString}`;
+  const targetUrl = `https://api.openaq.org/v3/${endpoint}${queryString}`;
   console.log(`Proxying request to: ${targetUrl}`);
 
   try {
@@ -35,7 +41,6 @@ router.get('/*', async (req, res) => {
   }
 });
 
-// Mount router at root so requests to /.netlify/functions/openaq/* hit the handler
 app.use('/', router);
 
 module.exports.handler = serverless(app);
