@@ -1,4 +1,3 @@
-
 // File: netlify/functions/openaq.js
 const fetch = require('node-fetch');
 
@@ -33,7 +32,7 @@ exports.handler = async function (event, context) {
 
   try {
     // Extract the path after the function name
-    const path = event.path.replace('/.netlify/functions/openaq', '') || '/locations';
+    let path = event.path.replace('/.netlify/functions/openaq', '') || '/locations';
     
     // Build query string from parameters
     const queryParams = event.queryStringParameters || {};
@@ -50,13 +49,33 @@ exports.handler = async function (event, context) {
         'Accept': 'application/json',
         'X-API-Key': API_KEY,
         'User-Agent': 'Air-Quality-Dashboard/1.0'
-      }
+      },
+      timeout: 10000 // 10 second timeout
     });
+
+    // Log response details for debugging
+    console.log('OpenAQ API Response Status:', response.status);
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('OpenAQ API Error:', response.status, errorText);
+      
+      // Return a more helpful error response
+      return {
+        statusCode: response.status,
+        headers,
+        body: JSON.stringify({ 
+          error: `OpenAQ API Error: ${response.status}`,
+          details: errorText,
+          url: url 
+        }),
+      };
+    }
 
     const data = await response.text();
     
     return {
-      statusCode: response.status,
+      statusCode: 200,
       headers,
       body: data,
     };
@@ -67,7 +86,8 @@ exports.handler = async function (event, context) {
       headers,
       body: JSON.stringify({ 
         error: 'Proxy error', 
-        details: error.message 
+        details: error.message,
+        stack: error.stack 
       }),
     };
   }
