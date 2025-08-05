@@ -1,44 +1,173 @@
-async function fetchTopPollutedCities() {
-    const container = document.getElementById('top-cities-list');
-    container.innerHTML = '<div class="loader">Loading live city data...</div>';
-    try {
-        // Use the correct '/latest' endpoint with 'parameter' in the query string
-        const resp = await fetch(
-            `${backendProxyUrl}/latest?limit=1000&parameter=pm25&order_by=lastUpdated`
-        );
-        if (!resp.ok) throw new Error(`API Error (${resp.status})`);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Air Quality Monitoring Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body{background-color:#1A1A1A;color:#EAEAEA;font-family:'Inter',sans-serif;margin:0;overflow:hidden}
+        .dashboard-header{display:flex;align-items:center;padding:10px 25px;background-color:#F8F9FA;position:relative;border-bottom:1px solid #DEE2E6;height:75px;box-sizing:border-box}
+        #header-logo{height:50px;margin-right:20px}
+        .header-text{flex-grow:1}.header-text h1{font-size:22px;margin-bottom:4px;color:#212529}.header-text p{font-size:14px;color:#495057}
+        .dashboard-container{display:grid;grid-template-columns:1fr 380px;height:calc(100vh - 75px);padding:15px;gap:15px;transition:grid-template-columns .4s ease-in-out}
+        .map-panel,.sidebar{height:100%;position:relative}
+        .sidebar{display:flex;flex-direction:column;gap:15px;overflow:hidden}
+        .widget{background-color:#2a2a2e;border-radius:8px;padding:15px 20px;display:flex;flex-direction:column}
+        .widget-content.scrollable{overflow-y:auto}
+        #news-list.widget-content{flex-grow:1}
+        .widget-title{margin:0 0 15px;font-weight:500;border-bottom:1px solid #444;padding-bottom:10px}
+        .list-item{display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid #444}
+        .list-item:last-child{border-bottom:none}
+        .list-item .city-name{flex-grow:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:10px}
+        .aqi-value{font-weight:700}.aqi-value.aqi-good{color:#00E400}.aqi-value.aqi-moderate{color:#FFFF00}.aqi-value.aqi-sensitive{color:#FF7E00}.aqi-value.aqi-unhealthy{color:#FF0000}
+        #sidebar-toggle-btn{background-color:rgba(76,139,245,.8);color:#fff;border:none;border-radius:5px;padding:8px 12px;font-size:20px;line-height:1;cursor:pointer;transition:background-color .3s;margin-left:20px}
+        #sidebar-toggle-btn:hover{background-color:rgba(76,139,245,1)}
+        .dashboard-container.sidebar-collapsed{grid-template-columns:1fr 0;gap:0}
+        .dashboard-container.sidebar-collapsed .sidebar{visibility:hidden;opacity:0}
+        #map{width:100%;height:calc(100% - 60px);border-radius:8px}
+        #search-container{display:flex;margin-bottom:15px}
+        #address-input{flex-grow:1;padding:10px;border:1px solid #444;background-color:#2a2a2e;color:#eaeaea;border-radius:5px 0 0 5px}
+        #search-button{padding:10px 15px;border:none;background-color:#4C8BF5;color:#fff;cursor:pointer;border-radius:0 5px 5px 0}
+        #legend-map{position:absolute;bottom:30px;right:10px;background-color:rgba(30,30,30,.85);backdrop-filter:blur(5px);color:#fff;padding:10px 15px;border-radius:8px;z-index:5;font-size:14px;line-height:1.5;border:1px solid rgba(255,255,255,.1)}
+        #legend-map h4{margin:0 0 8px;text-align:center;font-weight:500;border-bottom:1px solid #444;padding-bottom:5px}
+        #legend-map div{display:flex;align-items:center;margin-bottom:4px}
+        #legend-map div:last-child{margin-bottom:0}
+        #legend-map span{width:14px;height:14px;border-radius:50%;margin-right:10px;display:inline-block;border:1px solid #555}
+        .error-message,.loader{color:#FF7E00;padding:10px;text-align:center}
+        .info-window-content{color:#1A1A1A}
+        .info-window-content h3{margin:0 0 5px}
+        .info-window-content p{margin:0}
+        .news-item a{color:#8ab4f8;text-decoration:none}
+        .news-item a:hover{text-decoration:underline}
+        .news-source{display:block;font-size:12px;color:#999;margin-top:4px}
+    </style>
+</head>
+<body>
+    <header class="dashboard-header"></header>
 
-        const data = await resp.json();
-        const results = data.results || [];
-        console.log('Fetched records:', results.length, results.length > 0 ? results[0] : 'No results');
+    <div class="dashboard-container">
+        <main class="map-panel"></main>
+        <aside class="sidebar">
+            <div class="widget">
+                <h3 class="widget-title">Top 5 Most Polluted Cities</h3>
+                <div id="top-cities-list" class="widget-content"><div class="loader">Loading live city data...</div></div>
+            </div>
+            <div class="widget">
+                <h3 class="widget-title">Global PM2.5 Trend (Last 7 Days)</h3>
+                <div id="global-trend-chart" class="widget-content"><canvas id="aqiTrendChart"></canvas></div>
+            </div>
+            <div class="widget">
+                <h3 class="widget-title">Air Pollution News & Research</h3>
+                <div id="news-list" class="widget-content scrollable"><div class="loader">Loading news feed...</div></div>
+            </div>
+        </aside>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+    // --- Configuration ---
+    const googleMapsApiKey = "YOUR_Maps_API_KEY"; // You must replace this
+    const backendProxyUrl = "/.netlify/functions/openaq";
+    const newsProxyUrl = "/.netlify/functions/gnews"; // You can keep this or remove it
 
-        // ... (the rest of your excellent processing logic) ...
+    // --- All other variables (map, infoWindow etc.) and functions (initMap, setupEventListeners etc.) ---
+    // This script assumes the full setup from our previous working versions.
+    
+    // --- CORRECTED API Functions for OpenAQ ---
+    async function fetchTopPollutedCities() {
+        const container = document.getElementById('top-cities-list');
+        container.innerHTML = '<div class="loader">Loading live city data...</div>';
+        try {
+            const resp = await fetch(`${backendProxyUrl}/latest?limit=1000&parameter=pm25&order_by=lastUpdated`);
+            if (!resp.ok) throw new Error(`API Error (${resp.status})`);
+            const data = await resp.json();
+            const results = data.results || [];
 
-        const cityMax = results.reduce((acc, rec) => {
-            const city = rec.city || rec.location;
-            if (city && rec.measurements && rec.measurements.length > 0) {
-                acc[city] = Math.max(acc[city] || 0, rec.measurements[0].value);
-            }
-            return acc;
-        }, {});
+            const cityMax = results.reduce((acc, rec) => {
+                const city = rec.city || rec.location;
+                if (city && rec.measurements && rec.measurements.length > 0) {
+                    acc[city] = Math.max(acc[city] || 0, rec.measurements[0].value);
+                }
+                return acc;
+            }, {});
 
-        const top5 = Object.entries(cityMax)
-            .map(([city, pm25]) => ({ city, pm25 }))
-            .sort((a, b) => b.pm25 - a.pm25)
-            .slice(0, 5);
+            const top5 = Object.entries(cityMax)
+                .map(([city, pm25]) => ({ city, pm25 }))
+                .sort((a, b) => b.pm25 - a.pm25)
+                .slice(0, 5);
 
-        container.innerHTML = '';
-        top5.forEach((item, idx) => {
-            const listItem = document.createElement('div');
-            listItem.className = 'list-item';
-            listItem.innerHTML =
-                `<span class="city-name">${idx + 1}. ${item.city}</span>` +
-                `<span class="aqi-value ${getAqiColorClass(item.pm25)}">${item.pm25.toFixed(1)} µg/m³</span>`;
-            container.appendChild(listItem);
-        });
-
-    } catch (error) {
-        console.error('Error loading top 5 cities:', error, error.stack);
-        container.innerHTML = `<div class="error-message">Could not load city data.</div>`;
+            container.innerHTML = '';
+            top5.forEach((item, idx) => {
+                const listItem = document.createElement('div');
+                listItem.className = 'list-item';
+                listItem.innerHTML = `
+                    <span class="city-name">${idx + 1}. ${item.city}</span>
+                    <span class="aqi-value ${getAqiColorClass(item.pm25)}">${item.pm25.toFixed(1)} µg/m³</span>`;
+                container.appendChild(listItem);
+            });
+        } catch (error) {
+            console.error('Error loading top 5 cities:', error);
+            container.innerHTML = `<div class="error-message">Could not load city data.</div>`;
+        }
     }
-}
+
+    async function fetchWeeklyTrendData() {
+        const chartContainer = document.getElementById('global-trend-chart');
+        try {
+            // Get data for a major location for the last 7 days from the /measurements endpoint
+            const dateTo = new Date();
+            const dateFrom = new Date();
+            dateFrom.setDate(dateTo.getDate() - 7);
+
+            const params = new URLSearchParams({
+                location: 'Delhi', // Using a major city as a proxy for a "global" trend
+                parameter: 'pm25',
+                limit: 1000,
+                date_from: dateFrom.toISOString(),
+                date_to: dateTo.toISOString()
+            });
+            
+            const resp = await fetch(`${backendProxyUrl}/measurements?${params.toString()}`);
+            if (!resp.ok) throw new Error(`API Error (${resp.status})`);
+            const data = await resp.json();
+
+            // Process the data to get daily averages
+            const dailyAverages = {};
+            data.results.forEach(m => {
+                const day = m.date.local.split('T')[0];
+                if (!dailyAverages[day]) dailyAverages[day] = { total: 0, count: 0 };
+                dailyAverages[day].total += m.value;
+                dailyAverages[day].count++;
+            });
+
+            const sortedDays = Object.keys(dailyAverages).sort();
+            const labels = sortedDays.map(day => new Date(day).toLocaleDateString('en-US', { weekday: 'short' }));
+            const chartData = sortedDays.map(day => dailyAverages[day].total / dailyAverages[day].count);
+
+            // Create the chart
+            const ctx = document.getElementById('aqiTrendChart').getContext('2d');
+            new Chart(ctx, { type: 'line', data: { labels: labels, datasets: [{ label: `Average PM2.5 (Delhi)`, data: chartData, borderColor: '#4C8BF5', fill: true }] }, options: { /* Chart options */ } });
+        } catch (error) {
+            console.error('Error loading trend data:', error);
+            chartContainer.innerHTML = `<div class="error-message">Could not load trend data.</div>`;
+        }
+    }
+
+    // --- All other helper functions like getAqiColorClass, initDashboard, etc. should be included here ---
+    function getAqiColorClass(value) {
+        if (value <= 12) return 'aqi-good';
+        if (value <= 35.4) return 'aqi-moderate';
+        if (value <= 55.4) return 'aqi-sensitive';
+        return 'aqi-unhealthy';
+    }
+    // Assume other functions like initMap, loadGoogleMapsScript, getNewsData etc. are present.
+    // Initializing the dashboard
+    document.addEventListener('DOMContentLoaded', () => {
+        // You would call your main init function here, e.g., loadGoogleMapsScript();
+        fetchTopPollutedCities();
+        fetchWeeklyTrendData();
+    });
+    </script>
+</body>
+</html>
