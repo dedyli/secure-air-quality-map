@@ -4,10 +4,23 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Global Air Quality Monitoring Dashboard</title>
-    <!-- styles omitted for brevity -->
+    <style>
+        body { font-family: sans-serif; background-color: #f0f2f5; margin: 20px; }
+        .sidebar { max-width: 400px; }
+        .widget { background-color: #fff; border-radius: 8px; padding: 15px 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .widget-title { margin: 0 0 15px 0; font-weight: 500; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        .loader, .error-message { color: #888; text-align: center; }
+        .list-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+        .list-item:last-child { border-bottom: none; }
+        .city-name { flex-grow: 1; }
+        .aqi-value { font-weight: bold; }
+        .aqi-good { color: #00E400; }
+        .aqi-moderate { color: #FFD700; }
+        .aqi-sensitive { color: #FF7E00; }
+        .aqi-unhealthy { color: #FF0000; }
+    </style>
 </head>
 <body>
-    <!-- header and layout omitted for brevity -->
 
     <aside class="sidebar">
         <div class="widget">
@@ -16,11 +29,10 @@
                 <div class="loader">Loading live city data...</div>
             </div>
         </div>
-        <!-- other widgets -->
     </aside>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
+    // This URL points to your Netlify function, which acts as a proxy
     const backendProxyUrl = "/.netlify/functions/openaq";
 
     function getAqiColorClass(value) {
@@ -30,29 +42,32 @@
         return 'aqi-unhealthy';
     }
 
-    // Fetch Top 5 Polluted Cities using OpenAQ v3 parameters/2/latest endpoint
+    // This function contains the corrected API call
     async function fetchTopPollutedCities() {
         const container = document.getElementById('top-cities-list');
         container.innerHTML = '<div class="loader">Loading live city data...</div>';
         try {
-            // Use parameters/2/latest for PM2.5 readings
+            // FIXED: Use the correct '/latest' endpoint and pass 'pm25' as a parameter.
             const resp = await fetch(
-              `${backendProxyUrl}/parameters/2/latest?limit=1000`
+              `${backendProxyUrl}/latest?limit=1000&parameter=pm25&order_by=lastUpdated`
             );
             if (!resp.ok) throw new Error(`API Error (${resp.status})`);
 
             const data = await resp.json();
             const results = data.results || [];
-            console.log('Fetched records:', results.length, results[0]);
 
-            // Group by city, take max value
+            // Your excellent data processing logic remains the same.
+            // It correctly groups results by city and finds the max value.
             const cityMax = results.reduce((acc, rec) => {
                 const city = rec.city || rec.location;
-                acc[city] = Math.max(acc[city] || 0, rec.value);
+                // Ensure the record is valid and has measurements
+                if (city && rec.measurements && rec.measurements.length > 0) {
+                   acc[city] = Math.max(acc[city] || 0, rec.measurements[0].value);
+                }
                 return acc;
             }, {});
 
-            // Sort and take top 5
+            // This correctly sorts and takes the top 5
             const top5 = Object.entries(cityMax)
                 .map(([city, pm25]) => ({ city, pm25 }))
                 .sort((a, b) => b.pm25 - a.pm25)
@@ -68,19 +83,14 @@
                 container.appendChild(listItem);
             });
         } catch (error) {
-            console.error('Error loading top 5 cities:', error, error.stack);
+            console.error('Error loading top 5 cities:', error);
             container.innerHTML = `<div class="error-message">Could not load city data.</div>`;
         }
     }
 
-    // Initialize dashboard
-    function initDashboard() {
-        fetchTopPollutedCities();
-        // other init calls...
-    }
-
+    // Initialize the dashboard when the page loads
     document.addEventListener('DOMContentLoaded', () => {
-        initDashboard();
+        fetchTopPollutedCities();
     });
     </script>
 </body>
