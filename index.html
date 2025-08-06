@@ -212,16 +212,14 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
     <script>
     // --- Configuration ---
-    let map, infoWindow, geocoder, heatmap; // Added heatmap global variable
+    let map, infoWindow, geocoder, heatmap; 
     
     // Your Google Maps API key
     const googleMapsApiKey = "AIzaSyB7tXsMopboB-twZRxqkZOGVZau-sqFjTM";
     
-    // These proxy URLs are no longer used for Google, but kept for other functions
     const openaqProxyUrl = "/.netlify/functions/openaq";
     const newsProxyUrl = "/.netlify/functions/gnews";
 
-    // Major cities for sampling air quality data
     const majorCities = [
         { name: "Delhi", lat: 28.6139, lng: 77.2090 },
         { name: "Beijing", lat: 39.9042, lng: 116.4074 },
@@ -284,7 +282,7 @@
         initDashboard();
         setupEventListeners();
         createMapLegend(); 
-        initHeatmapLayer(); // <-- INITIALIZE HEATMAP
+        initHeatmapLayer();
     };
 
     function initDashboard() {
@@ -635,7 +633,6 @@
     
     // --- NEW HEATMAP FUNCTIONS ---
     async function initHeatmapLayer() {
-        console.log("Fetching data for heatmap...");
         const heatmapData = [];
 
         const cityPromises = majorCities.map(async city => {
@@ -658,12 +655,14 @@
 
         heatmap = new google.maps.visualization.HeatmapLayer({
             data: validPoints,
-            map: null // Initially hidden
+            map: null 
         });
         
         // Configure heatmap appearance
         heatmap.set('radius', 50);
         heatmap.set('opacity', 0.7);
+        heatmap.set('maxIntensity', 200); // <-- THIS IS THE FIX
+        
         const gradient = [
             'rgba(0, 255, 255, 0)',
             'rgba(0, 255, 255, 1)',
